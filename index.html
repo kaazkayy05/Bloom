@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soft Farm - FPS</title>
+    <title>Fertilizer Simulator 3D</title>
     <style>
         body {
             margin: 0;
@@ -42,7 +42,7 @@
             z-index: 10;
             border: 1px solid #333;
         }
-        #start-screen {
+        .overlay-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(245, 204, 186, 0.95);
@@ -51,6 +51,18 @@
             justify-content: center;
             flex-direction: column;
             z-index: 20;
+        }
+        h1 {
+            color: #7c8a04; 
+            font-size: 54px; 
+            margin-bottom: 10px;
+        }
+        p {
+            color: #333; 
+            font-size: 20px; 
+            margin-bottom: 30px; 
+            text-align: center;
+            line-height: 1.5;
         }
         button {
             padding: 15px 30px;
@@ -73,14 +85,29 @@
         <div id="clock">0:00</div>
     </div>
     <div id="crosshair"></div>
-    <div id="start-screen">
-        <h1 style="color: #7c8a04; font-size: 54px; margin-bottom: 10px;">Soft Farm</h1>
-        <p style="color: #333; font-size: 20px; margin-bottom: 30px; text-align: center;">
+    
+    <div id="start-screen" class="overlay-screen">
+        <h1>Fertilizer Simulator 3D</h1>
+        <p>
+            <strong>Objective:</strong> Spray the weeds before any of them grow too large!<br><br>
             <strong>W A S D</strong> to walk.<br>
             <strong>Mouse</strong> to look around.<br>
-            <strong>Left Click</strong> (Hold) to spray fertilizer.
+            <strong>Left Click</strong> (Hold) to spray fertilizer.<br>
+            <strong>ESC</strong> to pause the game.
         </p>
-        <button id="start-btn">Click to Start</button>
+        <button id="start-btn">Click to Start / Resume</button>
+    </div>
+
+    <div id="game-over-screen" class="overlay-screen" style="display: none;">
+        <h1 style="color: #d32f2f;">Game Over</h1>
+        <p>A weed grew out of control and ruined the farm.</p>
+        <button onclick="location.reload()">Restart Game</button>
+    </div>
+
+    <div id="victory-screen" class="overlay-screen" style="display: none;">
+        <h1 style="color: #5a7a14;">Farm Saved</h1>
+        <p>You survived 60 seconds.</p>
+        <button onclick="location.reload()">Play Again</button>
     </div>
 
     <!-- Load Three.js -->
@@ -96,6 +123,8 @@
         const C_BARN = 0x8b2b2b;
         const C_WHEAT = 0xd4b857;
         const C_TRACTOR = 0x2d6b38;
+
+        const FATAL_WEED_SIZE = 3.5;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(C_SKY_BOT);
@@ -127,7 +156,6 @@
         dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // Ground
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(200, 200),
             new THREE.MeshStandardMaterial({ color: C_DIRT, roughness: 1.0 })
@@ -136,7 +164,6 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Dense Grass Field
         const grassGeo = new THREE.PlaneGeometry(0.35, 1.0);
         grassGeo.translate(0, 0.5, 0); 
         const grassMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.8 });
@@ -156,17 +183,14 @@
             dummy.updateMatrix();
             grassMesh.setMatrixAt(i, dummy.matrix);
             
-            // Add volume via color variation
             color.setHex(C_GRASS);
-            color.lerp(new THREE.Color(0x7c9a14), Math.random() * 0.5); // Mix slightly brighter green
+            color.lerp(new THREE.Color(0x7c9a14), Math.random() * 0.5); 
             grassMesh.setColorAt(i, color);
         }
         scene.add(grassMesh);
 
-        // --- FARM STRUCTURES ---
         const sceneryGroup = new THREE.Group();
 
-        // 1. Barn
         const barnBase = new THREE.Mesh(new THREE.BoxGeometry(12, 7, 16), new THREE.MeshStandardMaterial({ color: C_BARN }));
         barnBase.position.set(-20, 3.5, -30);
         barnBase.castShadow = true;
@@ -179,7 +203,6 @@
         
         sceneryGroup.add(barnBase, barnRoof);
 
-        // 2. Tractor
         const tractor = new THREE.Group();
         const tEngine = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), new THREE.MeshStandardMaterial({ color: C_TRACTOR }));
         tEngine.position.set(0, 1.5, 1);
@@ -200,7 +223,6 @@
         tractor.traverse(child => { if(child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         sceneryGroup.add(tractor);
 
-        // 3. Wheat Field
         const wheatGeo = new THREE.CylinderGeometry(0.05, 0.05, 2);
         wheatGeo.translate(0, 1, 0);
         const wheatMat = new THREE.MeshStandardMaterial({ color: C_WHEAT });
@@ -213,7 +235,6 @@
         }
         sceneryGroup.add(wheatInstanced);
 
-        // 4. Cattle
         const cow = new THREE.Group();
         const cowBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 2.5), new THREE.MeshStandardMaterial({ color: 0x8B4513 }));
         cowBody.position.y = 1.5;
@@ -230,7 +251,6 @@
         cow.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
         sceneryGroup.add(cow);
 
-        // 5. Farm Dog
         const dog = new THREE.Group();
         const dogBody = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 1.2), new THREE.MeshStandardMaterial({ color: 0xcd853f }));
         dogBody.position.y = 0.5;
@@ -243,7 +263,6 @@
 
         scene.add(sceneryGroup);
 
-        // Player / Gun Model
         const gunGroup = new THREE.Group();
         const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), new THREE.MeshStandardMaterial({ color: 0xdddddd }));
         barrel.rotation.x = Math.PI / 2;
@@ -257,7 +276,6 @@
         camera.add(gunGroup);
         scene.add(camera);
 
-        // Weeds System
         const weeds = [];
         const weedGeo = new THREE.ConeGeometry(0.4, 1.2, 6);
         weedGeo.translate(0, 0.6, 0); 
@@ -265,23 +283,25 @@
 
         function spawnWeed() {
             const weed = new THREE.Mesh(weedGeo, weedMat);
-            // Constrain weeds to a smaller 30x30 playable area
-            const x = (Math.random() - 0.5) * 30;
-            const z = (Math.random() - 0.5) * 30; 
+            // Constrain weeds to a tight 15x15 radius around center
+            const x = (Math.random() - 0.5) * 15;
+            const z = (Math.random() - 0.5) * 15; 
             weed.position.set(x, 0, z);
             weed.scale.setScalar(0.1);
             weed.castShadow = true;
             weed.receiveShadow = true;
             
             scene.add(weed);
-            weeds.push({ mesh: weed, active: true, maxSize: 1 + Math.random() * 2.0 });
+            weeds.push({ mesh: weed, active: true });
         }
 
-        for (let i = 0; i < 80; i++) spawnWeed();
+        for (let i = 0; i < 40; i++) spawnWeed();
 
         let isShooting = false;
         let gameTime = 0;
         let isPlaying = false;
+        let isGameOver = false;
+        
         const clock = new THREE.Clock();
         const raycaster = new THREE.Raycaster();
         const centerScreen = new THREE.Vector2(0, 0);
@@ -299,6 +319,8 @@
         });
 
         document.addEventListener('pointerlockchange', () => {
+            if (isGameOver) return;
+            
             if (document.pointerLockElement === document.body) {
                 document.getElementById('start-screen').style.display = 'none';
                 isPlaying = true;
@@ -336,6 +358,20 @@
 
         const uiClock = document.getElementById('clock');
 
+        function triggerGameOver() {
+            isPlaying = false;
+            isGameOver = true;
+            document.exitPointerLock();
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+        
+        function triggerVictory() {
+            isPlaying = false;
+            isGameOver = true;
+            document.exitPointerLock();
+            document.getElementById('victory-screen').style.display = 'flex';
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             if (!isPlaying) return;
@@ -343,7 +379,6 @@
             const dt = clock.getDelta();
             gameTime += dt;
 
-            // Player Movement (Speed increased from 8.0 to 12.0)
             const speed = 12.0 * dt;
             const moveDir = new THREE.Vector3();
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
@@ -370,12 +405,13 @@
                 dog.rotation.y = targetAngle;
             }
 
-            let growthRate = 0.3;
+            // Halved growth rates
+            let growthRate = 0.15;
             if (gameTime >= 55) {
-                growthRate = 1.5;
+                growthRate = 0.75;
                 uiClock.style.color = '#d32f2f';
             } else if (gameTime >= 30) {
-                growthRate = 0.8;
+                growthRate = 0.4;
             }
 
             if (gameTime < 60) {
@@ -384,16 +420,20 @@
                 if (gameTime >= 55) display += ` (0:0${60 - s})`;
                 uiClock.innerText = display;
             } else {
-                uiClock.innerText = "1:00 - Complete";
-                isShooting = false;
-                growthRate = 0;
+                triggerVictory();
+                return;
             }
 
             if (Math.random() < growthRate * dt * 3 && gameTime < 60) spawnWeed();
 
             weeds.forEach(w => {
-                if (w.active && w.mesh.scale.y < w.maxSize) {
+                if (w.active) {
                     w.mesh.scale.addScalar(growthRate * dt);
+                    
+                    // Fail state check
+                    if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
+                        triggerGameOver();
+                    }
                 }
             });
 
@@ -406,7 +446,6 @@
                     const hitMesh = intersects[0].object;
                     const weedData = weeds.find(w => w.mesh === hitMesh);
                     if (weedData) {
-                        // Melt rate increased drastically
                         weedData.mesh.scale.subScalar(15.0 * dt);
                         if (weedData.mesh.scale.y <= 0.1) {
                             weedData.active = false;
