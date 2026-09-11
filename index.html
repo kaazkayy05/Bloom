@@ -136,20 +136,30 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Flowing Grass Field (Instanced for performance)
-        const grassGeo = new THREE.PlaneGeometry(0.2, 0.8);
-        grassGeo.translate(0, 0.4, 0); 
-        const grassMat = new THREE.MeshStandardMaterial({ color: C_GRASS, side: THREE.DoubleSide, roughness: 0.8 });
-        const grassCount = 10000;
+        // Dense Grass Field
+        const grassGeo = new THREE.PlaneGeometry(0.35, 1.0);
+        grassGeo.translate(0, 0.5, 0); 
+        const grassMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.8 });
+        const grassCount = 60000;
         const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
         grassMesh.receiveShadow = true;
+        
         const dummy = new THREE.Object3D();
+        const color = new THREE.Color();
         
         for (let i = 0; i < grassCount; i++) {
             dummy.position.set((Math.random() - 0.5) * 120, 0, (Math.random() - 0.5) * 120);
             dummy.rotation.y = Math.random() * Math.PI;
+            
+            const scale = 0.6 + Math.random() * 0.8;
+            dummy.scale.set(scale, scale, scale);
             dummy.updateMatrix();
             grassMesh.setMatrixAt(i, dummy.matrix);
+            
+            // Add volume via color variation
+            color.setHex(C_GRASS);
+            color.lerp(new THREE.Color(0x7c9a14), Math.random() * 0.5); // Mix slightly brighter green
+            grassMesh.setColorAt(i, color);
         }
         scene.add(grassMesh);
 
@@ -203,7 +213,7 @@
         }
         sceneryGroup.add(wheatInstanced);
 
-        // 4. Cattle (Cow)
+        // 4. Cattle
         const cow = new THREE.Group();
         const cowBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 2.5), new THREE.MeshStandardMaterial({ color: 0x8B4513 }));
         cowBody.position.y = 1.5;
@@ -255,8 +265,9 @@
 
         function spawnWeed() {
             const weed = new THREE.Mesh(weedGeo, weedMat);
-            const x = (Math.random() - 0.5) * 60;
-            const z = (Math.random() - 0.5) * 60; 
+            // Constrain weeds to a smaller 30x30 playable area
+            const x = (Math.random() - 0.5) * 30;
+            const z = (Math.random() - 0.5) * 30; 
             weed.position.set(x, 0, z);
             weed.scale.setScalar(0.1);
             weed.castShadow = true;
@@ -332,8 +343,8 @@
             const dt = clock.getDelta();
             gameTime += dt;
 
-            // Player Movement
-            const speed = 8.0 * dt;
+            // Player Movement (Speed increased from 8.0 to 12.0)
+            const speed = 12.0 * dt;
             const moveDir = new THREE.Vector3();
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
@@ -346,7 +357,6 @@
             moveDir.normalize();
             camera.position.addScaledVector(moveDir, speed);
 
-            // Dog Roaming Logic
             const dogSpeed = 2.0;
             const dogPathX = Math.sin(gameTime * 0.5) * 10;
             const dogPathZ = Math.cos(gameTime * 0.3) * 10;
@@ -355,13 +365,11 @@
             const dirToTarget = targetPos.clone().sub(dog.position).normalize();
             dog.position.addScaledVector(dirToTarget, dogSpeed * dt);
             
-            // Make dog face movement direction
             if (dirToTarget.lengthSq() > 0.001) {
                 const targetAngle = Math.atan2(dirToTarget.x, dirToTarget.z);
                 dog.rotation.y = targetAngle;
             }
 
-            // Difficulty & Timeline Logic
             let growthRate = 0.3;
             if (gameTime >= 55) {
                 growthRate = 1.5;
@@ -398,7 +406,8 @@
                     const hitMesh = intersects[0].object;
                     const weedData = weeds.find(w => w.mesh === hitMesh);
                     if (weedData) {
-                        weedData.mesh.scale.subScalar(4.0 * dt);
+                        // Melt rate increased drastically
+                        weedData.mesh.scale.subScalar(15.0 * dt);
                         if (weedData.mesh.scale.y <= 0.1) {
                             weedData.active = false;
                             weedData.mesh.visible = false;
