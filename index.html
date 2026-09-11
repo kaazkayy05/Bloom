@@ -3,356 +3,355 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soft Farm - Fertilizer Game</title>
+    <title>Soft Farm - 3D</title>
     <style>
-        body, html {
+        body {
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
-            background-color: #000;
+            background-color: #f9e3cc;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             user-select: none;
         }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        #ui-layer {
+        #ui {
             position: absolute;
             top: 20px;
             left: 20px;
             pointer-events: none;
+            z-index: 10;
         }
         #clock {
             font-size: 32px;
             font-weight: bold;
             color: #7c8a04;
-            background: rgba(249, 227, 204, 0.8);
+            background: rgba(249, 227, 204, 0.9);
             padding: 10px 20px;
             border-radius: 15px;
             border: 3px solid #daa056;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        #overlay {
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            border: 1px solid #000;
+        }
+        #start-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(245, 204, 186, 0.2);
-            pointer-events: none;
+            background: rgba(245, 204, 186, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 20;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #daa056;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
     </style>
 </head>
 <body>
-    <div id="ui-layer">
+    <div id="ui">
         <div id="clock">0:00</div>
     </div>
-    <div id="overlay"></div>
-    <canvas id="gameCanvas"></canvas>
+    <div id="crosshair"></div>
+    <div id="start-screen">
+        <h1 style="color: #7c8a04; font-size: 48px;">Soft Farm</h1>
+        <p style="color: #333; font-size: 18px;">Move mouse to aim. Click and hold to spray fertilizer.</p>
+        <button id="start-btn">Click to Start</button>
+    </div>
 
+    <!-- Load Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const clockUI = document.getElementById('clock');
+        // Palette
+        const C_WEEDS = 0x7c8a04;
+        const C_SKY_TOP = 0xf9e3cc;
+        const C_SKY_BOT = 0xf5ccba;
+        const C_BUILDINGS = 0xc2cada;
+        const C_SUN = 0xdaa056;
+        const C_DIRT = 0xa37b45;
 
-        // Color Palette
-        const colors = {
-            weeds: '#7c8a04',
-            skyTop: '#f9e3cc',
-            skyBottom: '#f5ccba',
-            buildings: '#c2cada',
-            sun: '#daa056',
-            dirt: '#a37b45',
-            water: '#c2cada'
-        };
+        // Scene Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(C_SKY_BOT);
+        scene.fog = new THREE.Fog(C_SKY_BOT, 10, 50);
 
-        let width, height, cx, cy;
-        let mouseX = 0, mouseY = 0, isShooting = false;
-        let weeds = [];
-        let particles = [];
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        // Low angle first-person
+        camera.position.set(0, 1.2, 5); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(C_SKY_TOP, 0.6);
+        scene.add(ambientLight);
+
+        // Sun light facing away from character (illuminating from behind player)
+        const dirLight = new THREE.DirectionalLight(C_SUN, 1.2);
+        dirLight.position.set(-5, 10, 15);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.camera.left = -20;
+        dirLight.shadow.camera.right = 20;
+        dirLight.shadow.camera.top = 20;
+        dirLight.shadow.camera.bottom = -20;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
+
+        // Environment (Farm Ground)
+        const groundGeo = new THREE.PlaneGeometry(100, 100);
+        const groundMat = new THREE.MeshStandardMaterial({ color: C_DIRT, roughness: 1.0 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Background Scenery (Houses, Buildings, Light Poles)
+        const sceneryGroup = new THREE.Group();
+        const bldgMat = new THREE.MeshStandardMaterial({ color: C_BUILDINGS, roughness: 0.8 });
         
-        let gameTime = 0; // seconds
-        let lastFrameTime = performance.now();
-        let growthMultiplier = 1;
-
-        function resize() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-            cx = width / 2;
-            cy = height / 2;
+        function addHouse(x, z, w, h, d) {
+            const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bldgMat);
+            box.position.set(x, h/2, z);
+            box.castShadow = true;
+            box.receiveShadow = true;
+            
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(w*0.8, h*0.5, 4), new THREE.MeshStandardMaterial({color: 0x8a5a44}));
+            roof.position.set(x, h + (h*0.5)/2, z);
+            roof.rotation.y = Math.PI / 4;
+            roof.castShadow = true;
+            
+            sceneryGroup.add(box);
+            sceneryGroup.add(roof);
         }
-        window.addEventListener('resize', resize);
-        resize();
 
-        window.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+        function addPole(x, z) {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6), bldgMat);
+            pole.position.set(x, 3, z);
+            pole.castShadow = true;
+            
+            const light = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color: C_SUN}));
+            light.position.set(x, 6, z + 0.5);
+            sceneryGroup.add(pole);
+            sceneryGroup.add(light);
+        }
+
+        // Place background objects clearly visible in distance
+        addHouse(-8, -15, 4, 3, 4);
+        addHouse(10, -20, 5, 4, 5);
+        addHouse(-15, -25, 6, 5, 4);
+        addPole(-4, -10);
+        addPole(6, -12);
+        addPole(-10, -18);
+        scene.add(sceneryGroup);
+
+        // Player / Gun Model
+        const gunGroup = new THREE.Group();
+        
+        const barrelMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8), barrelMat);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0, 0, -0.4);
+        
+        const tankMat = new THREE.MeshStandardMaterial({ color: C_SUN, roughness: 0.3 });
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.5), tankMat);
+        tank.position.set(0, -0.15, -0.1);
+        
+        gunGroup.add(barrel);
+        gunGroup.add(tank);
+        
+        // Lock gun to camera in first-person view
+        gunGroup.position.set(0.4, -0.4, -0.8);
+        camera.add(gunGroup);
+        scene.add(camera);
+
+        // Weeds System
+        const weeds = [];
+        const weedGeo = new THREE.ConeGeometry(0.3, 1, 6);
+        // Translate geometry so scaling happens from the ground up
+        weedGeo.translate(0, 0.5, 0); 
+        const weedMat = new THREE.MeshStandardMaterial({ color: C_WEEDS, roughness: 0.9 });
+
+        function spawnWeed() {
+            const weed = new THREE.Mesh(weedGeo, weedMat);
+            const x = (Math.random() - 0.5) * 20;
+            const z = (Math.random() - 0.5) * 15 - 5; // Spawn in front of player
+            weed.position.set(x, 0, z);
+            weed.scale.setScalar(0.1); // Start small
+            weed.castShadow = true;
+            weed.receiveShadow = true;
+            
+            scene.add(weed);
+            weeds.push({ mesh: weed, active: true, maxSize: 1 + Math.random() * 1.5 });
+        }
+
+        // Initial Weeds
+        for (let i = 0; i < 40; i++) spawnWeed();
+
+        // Mechanics & State
+        let isShooting = false;
+        let gameTime = 0;
+        let isPlaying = false;
+        const clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+        const centerScreen = new THREE.Vector2(0, 0);
+        
+        const particles = [];
+        const particleGeo = new THREE.SphereGeometry(0.05, 4, 4);
+        const particleMat = new THREE.MeshBasicMaterial({ color: C_BUILDINGS });
+
+        // Input Handling
+        const startBtn = document.getElementById('start-btn');
+        const startScreen = document.getElementById('start-screen');
+        const uiClock = document.getElementById('clock');
+
+        startBtn.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            isPlaying = true;
+            clock.start();
         });
-        window.addEventListener('mousedown', () => isShooting = true);
+
+        window.addEventListener('mousedown', () => { if (isPlaying) isShooting = true; });
         window.addEventListener('mouseup', () => isShooting = false);
 
-        class Weed {
-            constructor() {
-                // Perspective spawn: bottom half of screen
-                this.depth = Math.random(); // 0 (horizon) to 1 (foreground)
-                this.x = (Math.random() - 0.5) * width * (1 + this.depth) + cx;
-                this.y = cy + (this.depth * (height / 2));
-                
-                this.maxSize = 20 + (this.depth * 80);
-                this.size = 2 + (this.depth * 5); // Start small
-                this.active = true;
-            }
+        // Pseudo mouse-look (Relaxed constraints)
+        let targetRotX = 0;
+        let targetRotY = 0;
+        window.addEventListener('mousemove', (e) => {
+            if (!isPlaying) return;
+            const nx = (e.clientX / window.innerWidth) * 2 - 1;
+            const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+            targetRotY = -nx * 0.8; 
+            targetRotX = ny * 0.4;
+        });
 
-            grow(dt) {
-                if (!this.active) return;
-                // Grow based on multiplier
-                if (this.size < this.maxSize) {
-                    this.size += (2 + (this.depth * 5)) * dt * growthMultiplier;
-                }
-            }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
-            shrink(amount) {
-                this.size -= amount;
-                if (this.size <= 2) {
-                    this.active = false; 
-                }
-            }
+        // Game Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isPlaying) return;
 
-            draw() {
-                if (!this.active) return;
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                
-                // Soft rendering
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = 'rgba(0,0,0,0.2)';
-                
-                ctx.fillStyle = colors.weeds;
-                ctx.beginPath();
-                // Draw a soft leafy shape
-                ctx.moveTo(0, 0);
-                ctx.quadraticCurveTo(-this.size/2, -this.size/1.5, 0, -this.size);
-                ctx.quadraticCurveTo(this.size/2, -this.size/1.5, 0, 0);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        class Particle {
-            constructor(startX, startY, targetX, targetY) {
-                this.x = startX;
-                this.y = startY;
-                const angle = Math.atan2(targetY - startY, targetX - startX) + (Math.random() - 0.5) * 0.2;
-                const speed = 800 + Math.random() * 400;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.life = 1.0;
-                this.size = Math.random() * 8 + 4;
-            }
-
-            update(dt) {
-                this.x += this.vx * dt;
-                this.y += this.vy * dt;
-                this.life -= dt * 2;
-                
-                // Gravity curve
-                this.vy += 400 * dt; 
-            }
-
-            draw() {
-                ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = colors.water;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        function initWeeds() {
-            for(let i = 0; i < 30; i++) {
-                weeds.push(new Weed());
-            }
-            // Sort by depth so closer weeds render on top
-            weeds.sort((a, b) => a.y - b.y);
-        }
-
-        function drawBackground() {
-            // Sky
-            const skyGrad = ctx.createLinearGradient(0, 0, 0, cy);
-            skyGrad.addColorStop(0, colors.skyTop);
-            skyGrad.addColorStop(1, colors.skyBottom);
-            ctx.fillStyle = skyGrad;
-            ctx.fillRect(0, 0, width, height);
-
-            // Sun (Sunset soft light)
-            ctx.save();
-            ctx.shadowBlur = 50;
-            ctx.shadowColor = colors.sun;
-            ctx.fillStyle = colors.sun;
-            ctx.beginPath();
-            ctx.arc(width * 0.25, cy - 80, 60, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-
-            // Distant soft buildings/light poles
-            ctx.fillStyle = colors.buildings;
-            ctx.fillRect(cx - 200, cy - 40, 60, 40);
-            ctx.fillRect(cx - 130, cy - 60, 40, 60);
-            ctx.fillRect(cx + 100, cy - 30, 80, 30);
-            
-            // Light poles
-            ctx.fillRect(cx + 50, cy - 80, 4, 80);
-            ctx.fillRect(cx - 250, cy - 90, 4, 90);
-            
-            // Farm Ground
-            const groundGrad = ctx.createLinearGradient(0, cy, 0, height);
-            groundGrad.addColorStop(0, '#606a00');
-            groundGrad.addColorStop(1, colors.dirt);
-            ctx.fillStyle = groundGrad;
-            ctx.fillRect(0, cy, width, height / 2);
-        }
-
-        function drawGun() {
-            const gunBaseX = cx;
-            const gunBaseY = height;
-            
-            const dx = mouseX - gunBaseX;
-            const dy = mouseY - gunBaseY;
-            const angle = Math.atan2(dy, dx);
-
-            ctx.save();
-            ctx.translate(gunBaseX, gunBaseY);
-            // Constrain rotation to mostly forward
-            const constrainedAngle = Math.max(Math.PI * 1.1, Math.min(Math.PI * 1.9, angle));
-            ctx.rotate(constrainedAngle);
-            
-            // Toy-like soft gun rendering
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = 'rgba(0,0,0,0.3)';
-            ctx.lineJoin = 'round';
-            
-            // Barrel
-            ctx.fillStyle = colors.buildings;
-            ctx.fillRect(0, -15, 120, 30);
-            
-            // Tank / Body
-            ctx.fillStyle = colors.sun;
-            ctx.beginPath();
-            ctx.ellipse(30, 0, 40, 25, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Nozzle
-            ctx.fillStyle = colors.skyTop;
-            ctx.fillRect(120, -10, 20, 20);
-
-            ctx.restore();
-
-            // Return nozzle coordinates for particle origin
-            return {
-                x: gunBaseX + Math.cos(constrainedAngle) * 140,
-                y: gunBaseY + Math.sin(constrainedAngle) * 140
-            };
-        }
-
-        function updateGameLogic(dt) {
+            const dt = clock.getDelta();
             gameTime += dt;
 
-            // Timeline logic
+            // Camera Smoothing
+            camera.rotation.y += (targetRotY - camera.rotation.y) * 5 * dt;
+            camera.rotation.x += (targetRotX - camera.rotation.x) * 5 * dt;
+
+            // Difficulty Logic
+            let growthRate = 0.2;
             if (gameTime >= 55) {
-                growthMultiplier = 4; // Fast growth
+                growthRate = 1.2;
+                uiClock.style.color = '#d32f2f'; // Alert color
             } else if (gameTime >= 30) {
-                growthMultiplier = 2; // Medium growth
-            } else {
-                growthMultiplier = 1; // Normal growth
+                growthRate = 0.6;
             }
 
             // Update UI
-            let displayTime = Math.floor(gameTime);
-            let seconds = displayTime % 60;
-            let displayString = `0:${seconds.toString().padStart(2, '0')}`;
-            
-            if (gameTime >= 55 && gameTime <= 60) {
-                let countdown = 60 - displayTime;
-                displayString += ` (0:0${countdown})`;
-                clockUI.style.color = '#d32f2f'; // Flash red for urgency
-            } else if (gameTime > 60) {
-                displayString = "1:00 - End";
-                clockUI.style.color = colors.weeds;
-                growthMultiplier = 0; // Stop growing at 60s
+            if (gameTime < 60) {
+                let s = Math.floor(gameTime);
+                let display = `0:${(s % 60).toString().padStart(2, '0')}`;
+                if (gameTime >= 55) {
+                    display += ` (0:0${60 - s})`;
+                }
+                uiClock.innerText = display;
+            } else {
+                uiClock.innerText = "1:00 - Complete";
                 isShooting = false;
+                growthRate = 0;
             }
-            clockUI.innerText = displayString;
 
-            // Spawn weeds dynamically
-            if (Math.random() < 0.5 * dt * growthMultiplier && gameTime < 60) {
-                weeds.push(new Weed());
-                weeds.sort((a, b) => a.y - b.y);
+            // Continuous Weed Growth
+            if (Math.random() < growthRate * dt * 2 && gameTime < 60) {
+                spawnWeed();
             }
-        }
 
-        function loop(timestamp) {
-            const dt = (timestamp - lastFrameTime) / 1000;
-            lastFrameTime = timestamp;
-
-            // Cap dt to prevent massive jumps when tab is inactive
-            const safeDt = Math.min(dt, 0.1);
-
-            updateGameLogic(safeDt);
-
-            ctx.clearRect(0, 0, width, height);
-            drawBackground();
-
-            // Update & Draw Weeds
-            for (let i = weeds.length - 1; i >= 0; i--) {
-                let w = weeds[i];
-                w.grow(safeDt);
-                w.draw();
-                
-                // Cleanup inactive
-                if (!w.active) {
-                    weeds.splice(i, 1);
+            weeds.forEach(w => {
+                if (w.active && w.mesh.scale.y < w.maxSize) {
+                    w.mesh.scale.addScalar(growthRate * dt);
                 }
-            }
+            });
 
-            // Gun and Shooting mechanics
-            const nozzle = drawGun();
+            // Shooting Logic
+            if (isShooting) {
+                // Raycast to shrink weeds
+                raycaster.setFromCamera(centerScreen, camera);
+                const activeMeshes = weeds.filter(w => w.active).map(w => w.mesh);
+                const intersects = raycaster.intersectObjects(activeMeshes);
 
-            if (isShooting && gameTime < 60) {
-                for (let i = 0; i < 3; i++) {
-                    particles.push(new Particle(nozzle.x, nozzle.y, mouseX, mouseY));
-                }
-            }
-
-            // Update & Draw Particles, handle collisions
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.update(safeDt);
-                p.draw();
-
-                // Collision with weeds
-                for (let w of weeds) {
-                    if (w.active) {
-                        const dist = Math.hypot(p.x - w.x, p.y - (w.y - w.size/2));
-                        if (dist < w.size / 1.5) {
-                            w.shrink(10 * safeDt);
-                            p.life = 0; // Destroy particle
-                            break;
+                if (intersects.length > 0) {
+                    const hitMesh = intersects[0].object;
+                    const weedData = weeds.find(w => w.mesh === hitMesh);
+                    if (weedData) {
+                        weedData.mesh.scale.subScalar(3.0 * dt);
+                        if (weedData.mesh.scale.y <= 0.1) {
+                            weedData.active = false;
+                            weedData.mesh.visible = false; // Hide completely
                         }
                     }
                 }
 
-                if (p.life <= 0) {
+                // Spawn visual fertilizer particles
+                const p = new THREE.Mesh(particleGeo, particleMat);
+                
+                // Get gun nozzle world position
+                const nozzlePos = new THREE.Vector3(0, 0, -0.8);
+                gunGroup.localToWorld(nozzlePos);
+                p.position.copy(nozzlePos);
+                
+                // Shoot towards raycast direction
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                dir.add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, 0)); // Spread
+                
+                scene.add(p);
+                particles.push({ mesh: p, dir: dir, life: 1.0 });
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.mesh.position.addScaledVector(p.dir, 15 * dt);
+                p.mesh.position.y -= 2 * dt; // Gravity
+                p.life -= dt * 2;
+                if (p.life <= 0 || p.mesh.position.y < 0) {
+                    scene.remove(p.mesh);
                     particles.splice(i, 1);
                 }
             }
 
-            requestAnimationFrame(loop);
+            renderer.render(scene, camera);
         }
 
-        initWeeds();
-        requestAnimationFrame(loop);
+        animate();
     </script>
 </body>
 </html>
