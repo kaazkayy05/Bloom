@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fertilizer Simulator 3D</title>
+    <title>Soft Farm - FPS</title>
     <style>
         body {
             margin: 0;
@@ -87,7 +87,7 @@
     <div id="crosshair"></div>
     
     <div id="start-screen" class="overlay-screen">
-        <h1>Fertilizer Simulator 3D</h1>
+        <h1>Soft Farm</h1>
         <p>
             <strong>Objective:</strong> Spray the weeds before any of them grow too large!<br><br>
             <strong>W A S D</strong> to walk.<br>
@@ -164,8 +164,9 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        const grassGeo = new THREE.PlaneGeometry(0.35, 1.0);
-        grassGeo.translate(0, 0.5, 0); 
+        // Grass height reduced to 0.25
+        const grassGeo = new THREE.PlaneGeometry(0.35, 0.25);
+        grassGeo.translate(0, 0.125, 0); 
         const grassMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.8 });
         const grassCount = 60000;
         const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
@@ -283,11 +284,11 @@
 
         function spawnWeed() {
             const weed = new THREE.Mesh(weedGeo, weedMat);
-            // Constrain weeds to a tight 15x15 radius around center
             const x = (Math.random() - 0.5) * 15;
             const z = (Math.random() - 0.5) * 15; 
             weed.position.set(x, 0, z);
-            weed.scale.setScalar(0.1);
+            // Spawn size increased to 0.2
+            weed.scale.setScalar(0.2);
             weed.castShadow = true;
             weed.receiveShadow = true;
             
@@ -405,7 +406,6 @@
                 dog.rotation.y = targetAngle;
             }
 
-            // Halved growth rates
             let growthRate = 0.15;
             if (gameTime >= 55) {
                 growthRate = 0.75;
@@ -430,7 +430,6 @@
                 if (w.active) {
                     w.mesh.scale.addScalar(growthRate * dt);
                     
-                    // Fail state check
                     if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
                         triggerGameOver();
                     }
