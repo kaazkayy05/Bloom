@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soft Farm - 3D</title>
+    <title>Fertilizer Simulator 3D</title>
     <style>
         body {
             margin: 0;
@@ -33,19 +33,19 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 10px;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.8);
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.9);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 10;
-            border: 1px solid #000;
+            border: 1px solid #333;
         }
         #start-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(245, 204, 186, 0.8);
+            background: rgba(245, 204, 186, 0.95);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -61,6 +61,10 @@
             border-radius: 8px;
             cursor: pointer;
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+        button:active {
+            transform: scale(0.95);
         }
     </style>
 </head>
@@ -70,8 +74,12 @@
     </div>
     <div id="crosshair"></div>
     <div id="start-screen">
-        <h1 style="color: #7c8a04; font-size: 48px;">Soft Farm</h1>
-        <p style="color: #333; font-size: 18px;">Move mouse to aim. Click and hold to spray fertilizer.</p>
+        <h1 style="color: #7c8a04; font-size: 54px; margin-bottom: 10px;">Soft Farm</h1>
+        <p style="color: #333; font-size: 20px; margin-bottom: 30px; text-align: center;">
+            <strong>W A S D</strong> to walk.<br>
+            <strong>Mouse</strong> to look around.<br>
+            <strong>Left Click</strong> (Hold) to spray fertilizer.
+        </p>
         <button id="start-btn">Click to Start</button>
     </div>
 
@@ -90,11 +98,10 @@
         // Scene Setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(C_SKY_BOT);
-        scene.fog = new THREE.Fog(C_SKY_BOT, 10, 50);
+        scene.fog = new THREE.Fog(C_SKY_BOT, 10, 80);
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-        // Low angle first-person
-        camera.position.set(0, 1.2, 5); 
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+        camera.position.set(0, 1.5, 0); // Player height
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -107,29 +114,29 @@
         const ambientLight = new THREE.AmbientLight(C_SKY_TOP, 0.6);
         scene.add(ambientLight);
 
-        // Sun light facing away from character (illuminating from behind player)
         const dirLight = new THREE.DirectionalLight(C_SUN, 1.2);
-        dirLight.position.set(-5, 10, 15);
+        // Positioned low for sunset shadows, facing away from origin
+        dirLight.position.set(-20, 15, 30);
         dirLight.castShadow = true;
         dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 50;
-        dirLight.shadow.camera.left = -20;
-        dirLight.shadow.camera.right = 20;
-        dirLight.shadow.camera.top = 20;
-        dirLight.shadow.camera.bottom = -20;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -40;
+        dirLight.shadow.camera.right = 40;
+        dirLight.shadow.camera.top = 40;
+        dirLight.shadow.camera.bottom = -40;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
         // Environment (Farm Ground)
-        const groundGeo = new THREE.PlaneGeometry(100, 100);
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
         const groundMat = new THREE.MeshStandardMaterial({ color: C_DIRT, roughness: 1.0 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Background Scenery (Houses, Buildings, Light Poles)
+        // Background Scenery
         const sceneryGroup = new THREE.Group();
         const bldgMat = new THREE.MeshStandardMaterial({ color: C_BUILDINGS, roughness: 0.8 });
         
@@ -139,7 +146,9 @@
             box.castShadow = true;
             box.receiveShadow = true;
             
-            const roof = new THREE.Mesh(new THREE.ConeGeometry(w*0.8, h*0.5, 4), new THREE.MeshStandardMaterial({color: 0x8a5a44}));
+            const roofGeo = new THREE.ConeGeometry(w*0.8, h*0.5, 4);
+            const roofMat = new THREE.MeshStandardMaterial({color: 0x8a5a44, roughness: 0.9});
+            const roof = new THREE.Mesh(roofGeo, roofMat);
             roof.position.set(x, h + (h*0.5)/2, z);
             roof.rotation.y = Math.PI / 4;
             roof.castShadow = true;
@@ -149,69 +158,68 @@
         }
 
         function addPole(x, z) {
-            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6), bldgMat);
-            pole.position.set(x, 3, z);
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 8), bldgMat);
+            pole.position.set(x, 4, z);
             pole.castShadow = true;
             
-            const light = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color: C_SUN}));
-            light.position.set(x, 6, z + 0.5);
+            const light = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshBasicMaterial({color: C_SUN}));
+            light.position.set(x, 8, z + 0.5);
             sceneryGroup.add(pole);
             sceneryGroup.add(light);
         }
 
-        // Place background objects clearly visible in distance
-        addHouse(-8, -15, 4, 3, 4);
-        addHouse(10, -20, 5, 4, 5);
-        addHouse(-15, -25, 6, 5, 4);
-        addPole(-4, -10);
-        addPole(6, -12);
-        addPole(-10, -18);
+        // Generate farm structures
+        addHouse(-20, -30, 8, 6, 8);
+        addHouse(25, -40, 10, 7, 10);
+        addHouse(-35, 10, 6, 5, 6);
+        addPole(-15, -20);
+        addPole(15, -25);
+        addPole(-20, 5);
+        addPole(20, 20);
         scene.add(sceneryGroup);
 
         // Player / Gun Model
         const gunGroup = new THREE.Group();
-        
         const barrelMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8), barrelMat);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), barrelMat);
         barrel.rotation.x = Math.PI / 2;
         barrel.position.set(0, 0, -0.4);
         
         const tankMat = new THREE.MeshStandardMaterial({ color: C_SUN, roughness: 0.3 });
-        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.5), tankMat);
-        tank.position.set(0, -0.15, -0.1);
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4), tankMat);
+        tank.position.set(0, -0.1, -0.1);
         
         gunGroup.add(barrel);
         gunGroup.add(tank);
         
-        // Lock gun to camera in first-person view
-        gunGroup.position.set(0.4, -0.4, -0.8);
+        // Attach gun directly to camera
+        gunGroup.position.set(0.3, -0.3, -0.6);
         camera.add(gunGroup);
         scene.add(camera);
 
         // Weeds System
         const weeds = [];
-        const weedGeo = new THREE.ConeGeometry(0.3, 1, 6);
-        // Translate geometry so scaling happens from the ground up
-        weedGeo.translate(0, 0.5, 0); 
+        const weedGeo = new THREE.ConeGeometry(0.4, 1.2, 6);
+        weedGeo.translate(0, 0.6, 0); 
         const weedMat = new THREE.MeshStandardMaterial({ color: C_WEEDS, roughness: 0.9 });
 
         function spawnWeed() {
             const weed = new THREE.Mesh(weedGeo, weedMat);
-            const x = (Math.random() - 0.5) * 20;
-            const z = (Math.random() - 0.5) * 15 - 5; // Spawn in front of player
+            const x = (Math.random() - 0.5) * 80;
+            const z = (Math.random() - 0.5) * 80; 
             weed.position.set(x, 0, z);
-            weed.scale.setScalar(0.1); // Start small
+            weed.scale.setScalar(0.1);
             weed.castShadow = true;
             weed.receiveShadow = true;
             
             scene.add(weed);
-            weeds.push({ mesh: weed, active: true, maxSize: 1 + Math.random() * 1.5 });
+            weeds.push({ mesh: weed, active: true, maxSize: 1 + Math.random() * 2.0 });
         }
 
-        // Initial Weeds
-        for (let i = 0; i < 40; i++) spawnWeed();
+        // Populate initial field
+        for (let i = 0; i < 100; i++) spawnWeed();
 
-        // Mechanics & State
+        // Game State
         let isShooting = false;
         let gameTime = 0;
         let isPlaying = false;
@@ -220,32 +228,56 @@
         const centerScreen = new THREE.Vector2(0, 0);
         
         const particles = [];
-        const particleGeo = new THREE.SphereGeometry(0.05, 4, 4);
-        const particleMat = new THREE.MeshBasicMaterial({ color: C_BUILDINGS });
+        const particleGeo = new THREE.SphereGeometry(0.04, 4, 4);
+        const particleMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
 
-        // Input Handling
+        // FPS Controls State
+        let yaw = 0;
+        let pitch = 0;
+        const keys = { w: false, a: false, s: false, d: false };
+
+        // Pointer Lock & Input
         const startBtn = document.getElementById('start-btn');
         const startScreen = document.getElementById('start-screen');
-        const uiClock = document.getElementById('clock');
 
         startBtn.addEventListener('click', () => {
-            startScreen.style.display = 'none';
-            isPlaying = true;
-            clock.start();
+            document.body.requestPointerLock();
         });
 
-        window.addEventListener('mousedown', () => { if (isPlaying) isShooting = true; });
-        window.addEventListener('mouseup', () => isShooting = false);
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement === document.body) {
+                startScreen.style.display = 'none';
+                isPlaying = true;
+                clock.start();
+            } else {
+                startScreen.style.display = 'flex';
+                isPlaying = false;
+            }
+        });
 
-        // Pseudo mouse-look (Relaxed constraints)
-        let targetRotX = 0;
-        let targetRotY = 0;
-        window.addEventListener('mousemove', (e) => {
+        document.addEventListener('mousemove', (e) => {
             if (!isPlaying) return;
-            const nx = (e.clientX / window.innerWidth) * 2 - 1;
-            const ny = -(e.clientY / window.innerHeight) * 2 + 1;
-            targetRotY = -nx * 0.8; 
-            targetRotX = ny * 0.4;
+            const sensitivity = 0.002;
+            yaw -= e.movementX * sensitivity;
+            pitch -= e.movementY * sensitivity;
+            
+            // Clamp pitch to prevent flipping
+            pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch));
+            
+            // Apply rotations
+            camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+        });
+
+        window.addEventListener('mousedown', (e) => { if (isPlaying && e.button === 0) isShooting = true; });
+        window.addEventListener('mouseup', (e) => { if (e.button === 0) isShooting = false; });
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = false;
         });
 
         window.addEventListener('resize', () => {
@@ -253,6 +285,8 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        const uiClock = document.getElementById('clock');
 
         // Game Loop
         function animate() {
@@ -262,26 +296,37 @@
             const dt = clock.getDelta();
             gameTime += dt;
 
-            // Camera Smoothing
-            camera.rotation.y += (targetRotY - camera.rotation.y) * 5 * dt;
-            camera.rotation.x += (targetRotX - camera.rotation.x) * 5 * dt;
+            // Player Movement
+            const speed = 8.0 * dt;
+            const moveDir = new THREE.Vector3();
+            
+            // Get forward vector (ignoring pitch for flat walking)
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
+            // Get right vector
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
 
-            // Difficulty Logic
-            let growthRate = 0.2;
+            if (keys.w) moveDir.add(forward);
+            if (keys.s) moveDir.sub(forward);
+            if (keys.d) moveDir.add(right);
+            if (keys.a) moveDir.sub(right);
+            
+            moveDir.normalize();
+            camera.position.addScaledVector(moveDir, speed);
+
+            // Difficulty & Timeline Logic
+            let growthRate = 0.3;
             if (gameTime >= 55) {
-                growthRate = 1.2;
+                growthRate = 1.5;
                 uiClock.style.color = '#d32f2f'; // Alert color
             } else if (gameTime >= 30) {
-                growthRate = 0.6;
+                growthRate = 0.8;
             }
 
-            // Update UI
+            // Update UI Timer
             if (gameTime < 60) {
                 let s = Math.floor(gameTime);
                 let display = `0:${(s % 60).toString().padStart(2, '0')}`;
-                if (gameTime >= 55) {
-                    display += ` (0:0${60 - s})`;
-                }
+                if (gameTime >= 55) display += ` (0:0${60 - s})`;
                 uiClock.innerText = display;
             } else {
                 uiClock.innerText = "1:00 - Complete";
@@ -289,10 +334,8 @@
                 growthRate = 0;
             }
 
-            // Continuous Weed Growth
-            if (Math.random() < growthRate * dt * 2 && gameTime < 60) {
-                spawnWeed();
-            }
+            // Continuous Weed Growth & Spawning
+            if (Math.random() < growthRate * dt * 3 && gameTime < 60) spawnWeed();
 
             weeds.forEach(w => {
                 if (w.active && w.mesh.scale.y < w.maxSize) {
@@ -300,9 +343,8 @@
                 }
             });
 
-            // Shooting Logic
+            // Shooting Mechanics
             if (isShooting) {
-                // Raycast to shrink weeds
                 raycaster.setFromCamera(centerScreen, camera);
                 const activeMeshes = weeds.filter(w => w.active).map(w => w.mesh);
                 const intersects = raycaster.intersectObjects(activeMeshes);
@@ -311,37 +353,43 @@
                     const hitMesh = intersects[0].object;
                     const weedData = weeds.find(w => w.mesh === hitMesh);
                     if (weedData) {
-                        weedData.mesh.scale.subScalar(3.0 * dt);
+                        weedData.mesh.scale.subScalar(4.0 * dt);
                         if (weedData.mesh.scale.y <= 0.1) {
                             weedData.active = false;
-                            weedData.mesh.visible = false; // Hide completely
+                            weedData.mesh.visible = false;
                         }
                     }
                 }
 
-                // Spawn visual fertilizer particles
+                // Fertilizer Particles
                 const p = new THREE.Mesh(particleGeo, particleMat);
                 
-                // Get gun nozzle world position
+                // Spawn at gun nozzle
                 const nozzlePos = new THREE.Vector3(0, 0, -0.8);
                 gunGroup.localToWorld(nozzlePos);
                 p.position.copy(nozzlePos);
                 
-                // Shoot towards raycast direction
-                const dir = new THREE.Vector3();
-                camera.getWorldDirection(dir);
-                dir.add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, 0)); // Spread
+                // Shoot slightly randomized forward direction
+                const pDir = new THREE.Vector3();
+                camera.getWorldDirection(pDir);
+                pDir.add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, 0));
                 
                 scene.add(p);
-                particles.push({ mesh: p, dir: dir, life: 1.0 });
+                particles.push({ mesh: p, dir: pDir, life: 0.8 });
+                
+                // Gun recoil animation
+                gunGroup.position.z = -0.58 + (Math.random() * 0.02);
+            } else {
+                gunGroup.position.z = -0.6; // Reset gun position
             }
 
-            // Update Particles
+            // Physics for particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
-                p.mesh.position.addScaledVector(p.dir, 15 * dt);
-                p.mesh.position.y -= 2 * dt; // Gravity
-                p.life -= dt * 2;
+                p.mesh.position.addScaledVector(p.dir, 20 * dt);
+                p.mesh.position.y -= 4 * dt; // Gravity arc
+                p.life -= dt;
+                
                 if (p.life <= 0 || p.mesh.position.y < 0) {
                     scene.remove(p.mesh);
                     particles.splice(i, 1);
