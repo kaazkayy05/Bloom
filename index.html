@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fertilizer Simulator 3D</title>
+    <title>Soft Farm - FPS</title>
     <style>
         body {
             margin: 0;
@@ -87,21 +87,22 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <script>
-        // Palette
         const C_WEEDS = 0x7c8a04;
         const C_SKY_TOP = 0xf9e3cc;
         const C_SKY_BOT = 0xf5ccba;
-        const C_BUILDINGS = 0xc2cada;
         const C_SUN = 0xdaa056;
-        const C_DIRT = 0xa37b45;
+        const C_DIRT = 0x6e5229;
+        const C_GRASS = 0x5a7a14;
+        const C_BARN = 0x8b2b2b;
+        const C_WHEAT = 0xd4b857;
+        const C_TRACTOR = 0x2d6b38;
 
-        // Scene Setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(C_SKY_BOT);
         scene.fog = new THREE.Fog(C_SKY_BOT, 10, 80);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
-        camera.position.set(0, 1.5, 0); // Player height
+        camera.position.set(0, 1.5, 0); 
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -110,89 +111,138 @@
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         document.body.appendChild(renderer.domElement);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(C_SKY_TOP, 0.6);
+        const ambientLight = new THREE.AmbientLight(C_SKY_TOP, 0.7);
         scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(C_SUN, 1.2);
-        // Positioned low for sunset shadows, facing away from origin
         dirLight.position.set(-20, 15, 30);
         dirLight.castShadow = true;
         dirLight.shadow.camera.near = 0.5;
         dirLight.shadow.camera.far = 100;
-        dirLight.shadow.camera.left = -40;
-        dirLight.shadow.camera.right = 40;
-        dirLight.shadow.camera.top = 40;
-        dirLight.shadow.camera.bottom = -40;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // Environment (Farm Ground)
-        const groundGeo = new THREE.PlaneGeometry(200, 200);
-        const groundMat = new THREE.MeshStandardMaterial({ color: C_DIRT, roughness: 1.0 });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
+        // Ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200),
+            new THREE.MeshStandardMaterial({ color: C_DIRT, roughness: 1.0 })
+        );
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Background Scenery
-        const sceneryGroup = new THREE.Group();
-        const bldgMat = new THREE.MeshStandardMaterial({ color: C_BUILDINGS, roughness: 0.8 });
+        // Flowing Grass Field (Instanced for performance)
+        const grassGeo = new THREE.PlaneGeometry(0.2, 0.8);
+        grassGeo.translate(0, 0.4, 0); 
+        const grassMat = new THREE.MeshStandardMaterial({ color: C_GRASS, side: THREE.DoubleSide, roughness: 0.8 });
+        const grassCount = 10000;
+        const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
+        grassMesh.receiveShadow = true;
+        const dummy = new THREE.Object3D();
         
-        function addHouse(x, z, w, h, d) {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bldgMat);
-            box.position.set(x, h/2, z);
-            box.castShadow = true;
-            box.receiveShadow = true;
-            
-            const roofGeo = new THREE.ConeGeometry(w*0.8, h*0.5, 4);
-            const roofMat = new THREE.MeshStandardMaterial({color: 0x8a5a44, roughness: 0.9});
-            const roof = new THREE.Mesh(roofGeo, roofMat);
-            roof.position.set(x, h + (h*0.5)/2, z);
-            roof.rotation.y = Math.PI / 4;
-            roof.castShadow = true;
-            
-            sceneryGroup.add(box);
-            sceneryGroup.add(roof);
+        for (let i = 0; i < grassCount; i++) {
+            dummy.position.set((Math.random() - 0.5) * 120, 0, (Math.random() - 0.5) * 120);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.updateMatrix();
+            grassMesh.setMatrixAt(i, dummy.matrix);
         }
+        scene.add(grassMesh);
 
-        function addPole(x, z) {
-            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 8), bldgMat);
-            pole.position.set(x, 4, z);
-            pole.castShadow = true;
-            
-            const light = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshBasicMaterial({color: C_SUN}));
-            light.position.set(x, 8, z + 0.5);
-            sceneryGroup.add(pole);
-            sceneryGroup.add(light);
+        // --- FARM STRUCTURES ---
+        const sceneryGroup = new THREE.Group();
+
+        // 1. Barn
+        const barnBase = new THREE.Mesh(new THREE.BoxGeometry(12, 7, 16), new THREE.MeshStandardMaterial({ color: C_BARN }));
+        barnBase.position.set(-20, 3.5, -30);
+        barnBase.castShadow = true;
+        barnBase.receiveShadow = true;
+        
+        const barnRoof = new THREE.Mesh(new THREE.ConeGeometry(11, 6, 4), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+        barnRoof.position.set(-20, 10, -30);
+        barnRoof.rotation.y = Math.PI / 4;
+        barnRoof.castShadow = true;
+        
+        sceneryGroup.add(barnBase, barnRoof);
+
+        // 2. Tractor
+        const tractor = new THREE.Group();
+        const tEngine = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), new THREE.MeshStandardMaterial({ color: C_TRACTOR }));
+        tEngine.position.set(0, 1.5, 1);
+        const tCab = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3, 2.5), new THREE.MeshStandardMaterial({ color: C_TRACTOR }));
+        tCab.position.set(0, 2.5, -1.5);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const wheelGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.5, 16);
+        wheelGeo.rotateZ(Math.PI / 2);
+        
+        const w1 = new THREE.Mesh(wheelGeo, wheelMat); w1.position.set(1.5, 0.8, 1.5);
+        const w2 = new THREE.Mesh(wheelGeo, wheelMat); w2.position.set(-1.5, 0.8, 1.5);
+        const w3 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.6, 16).rotateZ(Math.PI/2), wheelMat); w3.position.set(1.6, 1.2, -1.5);
+        const w4 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.6, 16).rotateZ(Math.PI/2), wheelMat); w4.position.set(-1.6, 1.2, -1.5);
+        
+        tractor.add(tEngine, tCab, w1, w2, w3, w4);
+        tractor.position.set(15, 0, -25);
+        tractor.rotation.y = -Math.PI / 3;
+        tractor.traverse(child => { if(child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+        sceneryGroup.add(tractor);
+
+        // 3. Wheat Field
+        const wheatGeo = new THREE.CylinderGeometry(0.05, 0.05, 2);
+        wheatGeo.translate(0, 1, 0);
+        const wheatMat = new THREE.MeshStandardMaterial({ color: C_WHEAT });
+        const wheatInstanced = new THREE.InstancedMesh(wheatGeo, wheatMat, 400);
+        for(let i=0; i<400; i++) {
+            dummy.position.set(20 + (Math.random()-0.5)*15, 0, -10 + (Math.random()-0.5)*15);
+            dummy.rotation.set((Math.random()-0.5)*0.2, Math.random()*Math.PI, (Math.random()-0.5)*0.2);
+            dummy.updateMatrix();
+            wheatInstanced.setMatrixAt(i, dummy.matrix);
         }
+        sceneryGroup.add(wheatInstanced);
 
-        // Generate farm structures
-        addHouse(-20, -30, 8, 6, 8);
-        addHouse(25, -40, 10, 7, 10);
-        addHouse(-35, 10, 6, 5, 6);
-        addPole(-15, -20);
-        addPole(15, -25);
-        addPole(-20, 5);
-        addPole(20, 20);
+        // 4. Cattle (Cow)
+        const cow = new THREE.Group();
+        const cowBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 2.5), new THREE.MeshStandardMaterial({ color: 0x8B4513 }));
+        cowBody.position.y = 1.5;
+        const cowHead = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 1), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        cowHead.position.set(0, 2, 1.5);
+        const legGeo = new THREE.CylinderGeometry(0.15, 0.1, 1);
+        const leg1 = new THREE.Mesh(legGeo, cowBody.material); leg1.position.set(0.6, 0.5, 1);
+        const leg2 = new THREE.Mesh(legGeo, cowBody.material); leg2.position.set(-0.6, 0.5, 1);
+        const leg3 = new THREE.Mesh(legGeo, cowBody.material); leg3.position.set(0.6, 0.5, -1);
+        const leg4 = new THREE.Mesh(legGeo, cowBody.material); leg4.position.set(-0.6, 0.5, -1);
+        cow.add(cowBody, cowHead, leg1, leg2, leg3, leg4);
+        cow.position.set(-15, 0, -10);
+        cow.rotation.y = Math.PI / 4;
+        cow.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
+        sceneryGroup.add(cow);
+
+        // 5. Farm Dog
+        const dog = new THREE.Group();
+        const dogBody = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 1.2), new THREE.MeshStandardMaterial({ color: 0xcd853f }));
+        dogBody.position.y = 0.5;
+        const dogHead = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.5), new THREE.MeshStandardMaterial({ color: 0xcd853f }));
+        dogHead.position.set(0, 0.8, 0.7);
+        dog.add(dogBody, dogHead);
+        dog.position.set(5, 0, -5);
+        dog.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
+        sceneryGroup.add(dog);
+
         scene.add(sceneryGroup);
 
         // Player / Gun Model
         const gunGroup = new THREE.Group();
-        const barrelMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), barrelMat);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), new THREE.MeshStandardMaterial({ color: 0xdddddd }));
         barrel.rotation.x = Math.PI / 2;
         barrel.position.set(0, 0, -0.4);
         
-        const tankMat = new THREE.MeshStandardMaterial({ color: C_SUN, roughness: 0.3 });
-        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4), tankMat);
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4), new THREE.MeshStandardMaterial({ color: 0x2288cc }));
         tank.position.set(0, -0.1, -0.1);
         
-        gunGroup.add(barrel);
-        gunGroup.add(tank);
-        
-        // Attach gun directly to camera
+        gunGroup.add(barrel, tank);
         gunGroup.position.set(0.3, -0.3, -0.6);
         camera.add(gunGroup);
         scene.add(camera);
@@ -205,8 +255,8 @@
 
         function spawnWeed() {
             const weed = new THREE.Mesh(weedGeo, weedMat);
-            const x = (Math.random() - 0.5) * 80;
-            const z = (Math.random() - 0.5) * 80; 
+            const x = (Math.random() - 0.5) * 60;
+            const z = (Math.random() - 0.5) * 60; 
             weed.position.set(x, 0, z);
             weed.scale.setScalar(0.1);
             weed.castShadow = true;
@@ -216,10 +266,8 @@
             weeds.push({ mesh: weed, active: true, maxSize: 1 + Math.random() * 2.0 });
         }
 
-        // Populate initial field
-        for (let i = 0; i < 100; i++) spawnWeed();
+        for (let i = 0; i < 80; i++) spawnWeed();
 
-        // Game State
         let isShooting = false;
         let gameTime = 0;
         let isPlaying = false;
@@ -231,26 +279,21 @@
         const particleGeo = new THREE.SphereGeometry(0.04, 4, 4);
         const particleMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
 
-        // FPS Controls State
         let yaw = 0;
         let pitch = 0;
-        const keys = { w: false, a: false, s: false, d: false };
+        const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false };
 
-        // Pointer Lock & Input
-        const startBtn = document.getElementById('start-btn');
-        const startScreen = document.getElementById('start-screen');
-
-        startBtn.addEventListener('click', () => {
+        document.getElementById('start-btn').addEventListener('click', () => {
             document.body.requestPointerLock();
         });
 
         document.addEventListener('pointerlockchange', () => {
             if (document.pointerLockElement === document.body) {
-                startScreen.style.display = 'none';
+                document.getElementById('start-screen').style.display = 'none';
                 isPlaying = true;
                 clock.start();
             } else {
-                startScreen.style.display = 'flex';
+                document.getElementById('start-screen').style.display = 'flex';
                 isPlaying = false;
             }
         });
@@ -260,24 +303,18 @@
             const sensitivity = 0.002;
             yaw -= e.movementX * sensitivity;
             pitch -= e.movementY * sensitivity;
-            
-            // Clamp pitch to prevent flipping
             pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch));
-            
-            // Apply rotations
             camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
         });
 
         window.addEventListener('mousedown', (e) => { if (isPlaying && e.button === 0) isShooting = true; });
         window.addEventListener('mouseup', (e) => { if (e.button === 0) isShooting = false; });
 
-        window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = true;
+        document.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
         });
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = false;
+        document.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
         });
 
         window.addEventListener('resize', () => {
@@ -288,7 +325,6 @@
 
         const uiClock = document.getElementById('clock');
 
-        // Game Loop
         function animate() {
             requestAnimationFrame(animate);
             if (!isPlaying) return;
@@ -299,30 +335,41 @@
             // Player Movement
             const speed = 8.0 * dt;
             const moveDir = new THREE.Vector3();
-            
-            // Get forward vector (ignoring pitch for flat walking)
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
-            // Get right vector
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ')));
 
-            if (keys.w) moveDir.add(forward);
-            if (keys.s) moveDir.sub(forward);
-            if (keys.d) moveDir.add(right);
-            if (keys.a) moveDir.sub(right);
+            if (keys.KeyW) moveDir.add(forward);
+            if (keys.KeyS) moveDir.sub(forward);
+            if (keys.KeyD) moveDir.add(right);
+            if (keys.KeyA) moveDir.sub(right);
             
             moveDir.normalize();
             camera.position.addScaledVector(moveDir, speed);
+
+            // Dog Roaming Logic
+            const dogSpeed = 2.0;
+            const dogPathX = Math.sin(gameTime * 0.5) * 10;
+            const dogPathZ = Math.cos(gameTime * 0.3) * 10;
+            const targetPos = new THREE.Vector3(dogPathX, 0, dogPathZ - 10);
+            
+            const dirToTarget = targetPos.clone().sub(dog.position).normalize();
+            dog.position.addScaledVector(dirToTarget, dogSpeed * dt);
+            
+            // Make dog face movement direction
+            if (dirToTarget.lengthSq() > 0.001) {
+                const targetAngle = Math.atan2(dirToTarget.x, dirToTarget.z);
+                dog.rotation.y = targetAngle;
+            }
 
             // Difficulty & Timeline Logic
             let growthRate = 0.3;
             if (gameTime >= 55) {
                 growthRate = 1.5;
-                uiClock.style.color = '#d32f2f'; // Alert color
+                uiClock.style.color = '#d32f2f';
             } else if (gameTime >= 30) {
                 growthRate = 0.8;
             }
 
-            // Update UI Timer
             if (gameTime < 60) {
                 let s = Math.floor(gameTime);
                 let display = `0:${(s % 60).toString().padStart(2, '0')}`;
@@ -334,7 +381,6 @@
                 growthRate = 0;
             }
 
-            // Continuous Weed Growth & Spawning
             if (Math.random() < growthRate * dt * 3 && gameTime < 60) spawnWeed();
 
             weeds.forEach(w => {
@@ -343,7 +389,6 @@
                 }
             });
 
-            // Shooting Mechanics
             if (isShooting) {
                 raycaster.setFromCamera(centerScreen, camera);
                 const activeMeshes = weeds.filter(w => w.active).map(w => w.mesh);
@@ -361,33 +406,26 @@
                     }
                 }
 
-                // Fertilizer Particles
                 const p = new THREE.Mesh(particleGeo, particleMat);
-                
-                // Spawn at gun nozzle
                 const nozzlePos = new THREE.Vector3(0, 0, -0.8);
                 gunGroup.localToWorld(nozzlePos);
                 p.position.copy(nozzlePos);
                 
-                // Shoot slightly randomized forward direction
                 const pDir = new THREE.Vector3();
                 camera.getWorldDirection(pDir);
                 pDir.add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, 0));
                 
                 scene.add(p);
                 particles.push({ mesh: p, dir: pDir, life: 0.8 });
-                
-                // Gun recoil animation
                 gunGroup.position.z = -0.58 + (Math.random() * 0.02);
             } else {
-                gunGroup.position.z = -0.6; // Reset gun position
+                gunGroup.position.z = -0.6; 
             }
 
-            // Physics for particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.mesh.position.addScaledVector(p.dir, 20 * dt);
-                p.mesh.position.y -= 4 * dt; // Gravity arc
+                p.mesh.position.y -= 4 * dt; 
                 p.life -= dt;
                 
                 if (p.life <= 0 || p.mesh.position.y < 0) {
