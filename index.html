@@ -176,7 +176,7 @@
         }
 
         const groundGeo = new THREE.BoxGeometry(100, 1, 100);
-        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5C4033 }); // Dirt brown
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5C4033 }); 
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.position.y = -0.5;
         ground.receiveShadow = true;
@@ -298,17 +298,24 @@
         const weeds = [];
         const weedGeo = new THREE.BoxGeometry(1, 1, 1);
         weedGeo.translate(0, 0.5, 0); 
-        const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 }); // Restored olive color
+        const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 });
         let weedIdCounter = 0;
 
+        // Tracks player position to spawn objects locally instead of globally
         function getValidSpawnPosition() {
             let valid = false;
             let x, z;
             let spawnBox = new THREE.Box3();
             let attempts = 0;
             while (!valid && attempts < 20) {
-                x = (Math.random() - 0.5) * 60;
-                z = (Math.random() - 0.5) * 60;
+                // Spawn within a 24x24 radius of the player
+                x = player.position.x + (Math.random() - 0.5) * 24;
+                z = player.position.z + (Math.random() - 0.5) * 24;
+                
+                // Keep objects within the map boundaries
+                x = Math.max(-45, Math.min(45, x));
+                z = Math.max(-45, Math.min(45, z));
+
                 spawnBox.setFromCenterAndSize(new THREE.Vector3(x, 1, z), new THREE.Vector3(2, 2, 2));
                 valid = !colliders.some(c => spawnBox.intersectsBox(c));
                 attempts++;
@@ -477,7 +484,6 @@
                 }
             }
 
-            // AABB Collision Movement Fix
             let moveX = 0;
             let moveZ = 0;
             if (keys.KeyW) moveZ -= 1;
@@ -489,13 +495,11 @@
                 const moveVec = new THREE.Vector3(moveX, 0, moveZ).normalize();
                 moveVec.applyEuler(new THREE.Euler(0, player.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
                 
-                // Test X axis independently
                 playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x + moveVec.x, 1.25, player.position.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
                     player.position.x += moveVec.x;
                 }
 
-                // Test Z axis independently
                 playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x, 1.25, player.position.z + moveVec.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
                     player.position.z += moveVec.z;
@@ -544,7 +548,6 @@
                     if (w.active) {
                         w.mesh.scale.y += 0.08 * growthMultiplier * dt;
                         
-                        // Breathing animation
                         const breath = 0.8 + Math.sin(gameTime * 5 + w.id) * 0.15;
                         w.mesh.scale.x = breath;
                         w.mesh.scale.z = breath;
@@ -560,7 +563,6 @@
                 });
             }
 
-            // Dynamic Weed Danger Alert
             if (maxWeedHeight >= FATAL_WEED_SIZE * 0.8) {
                 if (!alertDangerTriggered) {
                     showPopup("WARNING: A weed is reaching critical height!", "#ff4400");
