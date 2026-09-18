@@ -80,7 +80,7 @@
             font-size: 20px; 
             margin-bottom: 30px; 
             line-height: 1.5;
-            max-width: 600px;
+            max-width: 650px;
         }
         button {
             padding: 15px 30px;
@@ -108,11 +108,13 @@
     <div id="start-screen" class="overlay-screen">
         <h1>Fertilizer Simulator 3D</h1>
         <p>
-            Survive 60 seconds. Spray mutated weeds before they grow too high.<br>
-            Collect spinning blocks for powerups!<br><br>
-            <strong>W A S D</strong> to move.<br>
-            <strong>Mouse</strong> to look.<br>
-            <strong>Left Click</strong> to spray.
+            Survive 60 seconds. Spray mutated weeds before they grow too high.<br><br>
+            <strong>W A S D</strong> to move. <strong>Mouse</strong> to look. <strong>Left Click</strong> to spray.<br><br>
+            <strong>POWERUPS:</strong><br>
+            <span style="color: #0088ff;">Blue:</span> +Speed | 
+            <span style="color: #ffff00;">Yellow:</span> +Range<br>
+            <span style="color: #00ffff;">Cyan:</span> Freeze Weeds | 
+            <span style="color: #ff00ff;">Magenta:</span> Delete All Weeds
         </p>
         <button id="start-btn">Start Game</button>
     </div>
@@ -301,18 +303,16 @@
         const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 });
         let weedIdCounter = 0;
 
-        // Tracks player position to spawn objects locally instead of globally
         function getValidSpawnPosition() {
             let valid = false;
             let x, z;
             let spawnBox = new THREE.Box3();
             let attempts = 0;
             while (!valid && attempts < 20) {
-                // Spawn within a 24x24 radius of the player
-                x = player.position.x + (Math.random() - 0.5) * 24;
-                z = player.position.z + (Math.random() - 0.5) * 24;
+                // Hardcode spawns to the empty field away from structures
+                x = -25 + (Math.random() - 0.5) * 40; 
+                z = 20 + (Math.random() - 0.5) * 40; 
                 
-                // Keep objects within the map boundaries
                 x = Math.max(-45, Math.min(45, x));
                 z = Math.max(-45, Math.min(45, z));
 
@@ -335,7 +335,7 @@
             weeds.push({ mesh: weed, active: true, id: weedIdCounter++ });
         }
 
-        for (let i = 0; i < 15; i++) spawnWeed();
+        for (let i = 0; i < 40; i++) spawnWeed();
 
         const powerups = [];
         const puGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
@@ -542,7 +542,7 @@
             if (freezeTimer > 0) {
                 freezeTimer -= dt;
             } else {
-                if (Math.random() < 0.3 * dt * growthMultiplier && weeds.length < 50) spawnWeed();
+                if (Math.random() < 2.5 * dt * growthMultiplier && weeds.length < 100) spawnWeed();
 
                 weeds.forEach(w => {
                     if (w.active) {
