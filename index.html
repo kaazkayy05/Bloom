@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fertilizer 3D</title>
+    <title>Fertilizer Simulator 3D</title>
     <style>
         body {
             margin: 0;
@@ -13,7 +13,7 @@
             user-select: none;
         }
         canvas {
-            image-rendering: pixelated; /* Forces the pixelated look */
+            image-rendering: pixelated; 
             width: 100vw;
             height: 100vh;
             display: block;
@@ -24,6 +24,7 @@
             left: 20px;
             pointer-events: none;
             z-index: 10;
+            text-align: center;
         }
         #clock {
             font-size: 32px;
@@ -32,6 +33,29 @@
             background: #000000;
             padding: 10px 20px;
             border: 4px solid #ffffff;
+            display: inline-block;
+        }
+        #popup {
+            margin-top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffff00;
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            opacity: 0;
+            transition: opacity 0.2s;
+            text-align: left;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #000;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            pointer-events: none;
         }
         .overlay-screen {
             position: absolute;
@@ -76,12 +100,16 @@
 <body>
     <div id="ui">
         <div id="clock">0:00</div>
+        <div id="popup">POWERUP!</div>
     </div>
     
+    <div id="crosshair"></div>
+
     <div id="start-screen" class="overlay-screen">
-        <h1>Fertilizer 3D</h1>
+        <h1>Fertilizer Simulator 3D</h1>
         <p>
-            Survive 60 seconds. Spray weeds before they grow too high.<br><br>
+            Survive 60 seconds. Spray weeds before they grow too high.<br>
+            Collect spinning blocks for powerups!<br><br>
             <strong>W A S D</strong> to move.<br>
             <strong>Mouse</strong> to look.<br>
             <strong>Left Click</strong> to spray.
@@ -105,37 +133,44 @@
     
     <script>
         const FATAL_WEED_SIZE = 4.0;
-        const RENDER_SCALE = 0.25; // Drastically reduces resolution for pixel art style
+        const RENDER_SCALE = 0.25; 
+
+        // Player Stats
+        let playerSpeed = 15.0;
+        let sprayRange = 14.0;
+        let freezeTimer = 0;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
         scene.fog = new THREE.Fog(0x87CEEB, 20, 60);
 
-        // Low FOV for a retro look
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
 
         const renderer = new THREE.WebGLRenderer({ antialias: false });
-        // Set internal resolution low, CSS stretches it to fill screen
         renderer.setSize(window.innerWidth * RENDER_SCALE, window.innerHeight * RENDER_SCALE, false);
         renderer.domElement.style.width = '100vw';
         renderer.domElement.style.height = '100vh';
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.BasicShadowMap; // Hard pixelated shadows
+        renderer.shadowMap.type = THREE.BasicShadowMap; 
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffdfaa, 1.0);
+        const dirLight = new THREE.DirectionalLight(0xffdfaa, 1.2);
         dirLight.position.set(-20, 30, 20);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 512;
-        dirLight.shadow.mapSize.height = 512;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
 
-        // Environment (Blocky)
+        // Ground
         const groundGeo = new THREE.BoxGeometry(100, 1, 100);
-        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5a7a14 });
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x4a6b10 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.position.y = -0.5;
         ground.receiveShadow = true;
@@ -143,7 +178,21 @@
 
         const sceneryGroup = new THREE.Group();
 
-        // Blocky Barn
+        // 1. Texturizing Ground with Grass Tufts
+        const grassTuftGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
+        grassTuftGeo.translate(0, 0.1, 0);
+        const grassTuftMat = new THREE.MeshLambertMaterial({ color: 0x5a7a14 });
+        const grassTufts = new THREE.InstancedMesh(grassTuftGeo, grassTuftMat, 4000);
+        const dummy = new THREE.Object3D();
+        for(let i=0; i<4000; i++) {
+            dummy.position.set((Math.random() - 0.5) * 90, 0, (Math.random() - 0.5) * 90);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.updateMatrix();
+            grassTufts.setMatrixAt(i, dummy.matrix);
+        }
+        sceneryGroup.add(grassTufts);
+
+        // 2. Blocky Barn
         const barnBase = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 16), new THREE.MeshLambertMaterial({ color: 0x8b2b2b }));
         barnBase.position.set(-20, 4, -30);
         barnBase.castShadow = true;
@@ -153,43 +202,88 @@
         barnRoof.castShadow = true;
         sceneryGroup.add(barnBase, barnRoof);
 
-        // Blocky Fences
+        // 3. Cattle Fence & Cows
         const fenceMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-        for(let i=0; i<10; i++) {
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), fenceMat);
-            post.position.set(20, 1, -20 + (i * 4));
-            post.castShadow = true;
-            sceneryGroup.add(post);
-            if (i < 9) {
-                const rail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 4), fenceMat);
-                rail.position.set(20, 1.2, -18 + (i * 4));
-                sceneryGroup.add(rail);
-            }
+        function addFenceSegment(x, z, rot) {
+            const f = new THREE.Group();
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.5, 0.4), fenceMat);
+            const rail1 = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 0.2), fenceMat);
+            rail1.position.set(2, 0.8, 0);
+            const rail2 = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 0.2), fenceMat);
+            rail2.position.set(2, 0.3, 0);
+            f.add(post, rail1, rail2);
+            f.position.set(x, 0.75, z);
+            f.rotation.y = rot;
+            f.traverse(c => { if(c.isMesh) c.castShadow = true; });
+            sceneryGroup.add(f);
         }
+        for(let i=0; i<6; i++) {
+            addFenceSegment(10 + i*5, -10, 0); 
+            addFenceSegment(10 + i*5, 20, 0);  
+            addFenceSegment(10, -10 + i*5, Math.PI/2); 
+            addFenceSegment(40, -10 + i*5, Math.PI/2); 
+        }
+        
+        // Cows in pen
+        function createCow(x, z, rot) {
+            const cow = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 2.0), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
+            body.position.y = 1.0;
+            const spot1 = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.6, 0.6), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+            spot1.position.set(0, 1.0, 0.4);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
+            head.position.set(0, 1.5, 1.2);
+            const legGeo = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+            const legMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const fl = new THREE.Mesh(legGeo, legMat); fl.position.set(0.4, 0.4, 0.8);
+            const fr = new THREE.Mesh(legGeo, legMat); fr.position.set(-0.4, 0.4, 0.8);
+            const bl = new THREE.Mesh(legGeo, legMat); bl.position.set(0.4, 0.4, -0.8);
+            const br = new THREE.Mesh(legGeo, legMat); br.position.set(-0.4, 0.4, -0.8);
+            cow.add(body, spot1, head, fl, fr, bl, br);
+            cow.position.set(x, 0, z);
+            cow.rotation.y = rot;
+            cow.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            sceneryGroup.add(cow);
+        }
+        createCow(20, 5, Math.PI/4);
+        createCow(30, 0, -Math.PI/3);
+        createCow(25, 12, Math.PI);
+
+        // 4. Wheat Field (Short)
+        const wheatGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2); 
+        wheatGeo.translate(0, 0.4, 0);
+        const wheatMat = new THREE.MeshLambertMaterial({ color: 0xd4b857 });
+        const wheatField = new THREE.InstancedMesh(wheatGeo, wheatMat, 600);
+        for(let i=0; i<600; i++) {
+            dummy.position.set(-25 + (Math.random()-0.5)*30, 0, 15 + (Math.random()-0.5)*30);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.updateMatrix();
+            wheatField.setMatrixAt(i, dummy.matrix);
+        }
+        sceneryGroup.add(wheatField);
+
         scene.add(sceneryGroup);
 
         // --- PLAYER SETUP (3rd Person) ---
         const player = new THREE.Group();
         player.position.set(0, 0, 0);
 
-        // Player Body Parts (Minecraft style)
-        const pMat = new THREE.MeshLambertMaterial({ color: 0x0000ff }); // Blue overalls
-        const sMat = new THREE.MeshLambertMaterial({ color: 0xffccaa }); // Skin
+        const pMat = new THREE.MeshLambertMaterial({ color: 0x0000ff }); 
+        const sMat = new THREE.MeshLambertMaterial({ color: 0xffccaa }); 
         
         const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), pMat);
         body.position.y = 1.25;
         body.castShadow = true;
         
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), sMat);
-        head.position.y = 2.4;
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), sMat);
+        head.position.y = 2.25;
         head.castShadow = true;
         
         const armRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), sMat);
-        armRight.position.set(0.7, 1.4, -0.4); // Raised to hold gun
+        armRight.position.set(0.7, 1.4, -0.4); 
         armRight.rotation.x = -Math.PI / 2;
         armRight.castShadow = true;
 
-        // Blocky Gun
         const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
         gun.position.set(0.7, 1.4, -1.0);
         gun.castShadow = true;
@@ -199,19 +293,18 @@
         player.add(body, head, armRight, gun, tank);
         scene.add(player);
 
-        // Camera Pivot Setup
         const cameraPivot = new THREE.Group();
-        cameraPivot.position.set(0, 2, 0); // Eye level pivot
+        cameraPivot.position.set(0.8, 2.0, 0); 
         player.add(cameraPivot);
         
-        camera.position.set(0, 1.5, 5); // Behind and slightly up
-        camera.lookAt(0, 0, -5);
+        camera.position.set(0, 0.5, 6); 
+        camera.lookAt(0, 0, -10);
         cameraPivot.add(camera);
 
         // --- WEEDS ---
         const weeds = [];
         const weedGeo = new THREE.BoxGeometry(1, 1, 1);
-        weedGeo.translate(0, 0.5, 0); // Scale from bottom
+        weedGeo.translate(0, 0.5, 0); 
         const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 });
 
         function spawnWeed() {
@@ -227,14 +320,40 @@
             weeds.push({ mesh: weed, active: true });
         }
 
-        // Initial weeds
         for (let i = 0; i < 15; i++) spawnWeed();
+
+        // --- POWERUPS ---
+        const powerups = [];
+        const puGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const mats = {
+            'SPEED': new THREE.MeshLambertMaterial({ color: 0x0088ff }), // Blue
+            'RANGE': new THREE.MeshLambertMaterial({ color: 0xffff00 }), // Yellow
+            'FREEZE': new THREE.MeshLambertMaterial({ color: 0x00ffff }), // Cyan
+            'NUKE': new THREE.MeshLambertMaterial({ color: 0xff00ff })    // Magenta
+        };
+
+        function spawnPowerup() {
+            const r = Math.random();
+            let type = 'SPEED';
+            if (r > 0.9) type = 'NUKE';
+            else if (r > 0.6) type = 'FREEZE';
+            else if (r > 0.3) type = 'RANGE';
+
+            const pu = new THREE.Mesh(puGeo, mats[type]);
+            pu.position.set((Math.random() - 0.5) * 30, 1.0, (Math.random() - 0.5) * 30);
+            scene.add(pu);
+            powerups.push({ mesh: pu, type: type });
+        }
+        let nextPowerupTime = 5;
 
         let isShooting = false;
         let gameTime = 0;
         let isPlaying = false;
         let isGameOver = false;
         
+        let alert30Triggered = false;
+        let alert55Triggered = false;
+
         const clock = new THREE.Clock();
         
         const particles = [];
@@ -266,7 +385,7 @@
             const sensitivity = 0.003;
             yaw -= e.movementX * sensitivity;
             pitch -= e.movementY * sensitivity;
-            pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, pitch)); // Restrict vertical look
+            pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, pitch)); 
             
             player.rotation.y = yaw;
             cameraPivot.rotation.x = pitch;
@@ -285,6 +404,15 @@
         });
 
         const uiClock = document.getElementById('clock');
+        const popupUI = document.getElementById('popup');
+        let popupTimer = 0;
+
+        function showPopup(text, color) {
+            popupUI.innerText = text;
+            popupUI.style.color = color;
+            popupUI.style.opacity = 1;
+            popupTimer = 3.0; // Show alerts slightly longer
+        }
 
         function endGame(victory) {
             isPlaying = false;
@@ -304,8 +432,46 @@
             const dt = clock.getDelta();
             gameTime += dt;
 
-            // Fast Player Movement
-            const speed = 15.0; 
+            // Popup fade
+            if (popupTimer > 0) {
+                popupTimer -= dt;
+                if (popupTimer <= 0) popupUI.style.opacity = 0;
+            }
+
+            // Powerup Logic
+            if (gameTime > nextPowerupTime) {
+                spawnPowerup();
+                nextPowerupTime = gameTime + 6 + Math.random() * 4;
+            }
+
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                let p = powerups[i];
+                p.mesh.rotation.y += dt * 2;
+                p.mesh.position.y = 1.0 + Math.sin(gameTime * 3) * 0.2; // Hover
+
+                // Collection collision
+                if (p.mesh.position.distanceTo(player.position) < 2.0) {
+                    if (p.type === 'SPEED') {
+                        playerSpeed *= 1.1;
+                        showPopup("SPEED powerup activated!", "#0088ff");
+                    } else if (p.type === 'RANGE') {
+                        sprayRange *= 1.1;
+                        showPopup("RANGE powerup activated!", "#ffff00");
+                    } else if (p.type === 'FREEZE') {
+                        freezeTimer = 5.0;
+                        showPopup("FREEZE powerup activated!", "#00ffff");
+                    } else if (p.type === 'NUKE') {
+                        weeds.forEach(w => {
+                            if (w.active) { w.active = false; w.mesh.visible = false; }
+                        });
+                        showPopup("NUKE powerup activated!", "#ff00ff");
+                    }
+                    scene.remove(p.mesh);
+                    powerups.splice(i, 1);
+                }
+            }
+
+            // Movement
             const moveDir = new THREE.Vector3();
             if (keys.KeyW) moveDir.z -= 1;
             if (keys.KeyS) moveDir.z += 1;
@@ -314,55 +480,71 @@
             
             if (moveDir.lengthSq() > 0) {
                 moveDir.normalize();
-                // Apply player's current rotation to movement
                 moveDir.applyEuler(new THREE.Euler(0, player.rotation.y, 0));
-                player.position.addScaledVector(moveDir, speed * dt);
+                player.position.addScaledVector(moveDir, playerSpeed * dt);
                 
-                // Keep player in bounds
                 player.position.x = Math.max(-48, Math.min(48, player.position.x));
                 player.position.z = Math.max(-48, Math.min(48, player.position.z));
             }
 
-            // Easy difficulty weed growth
-            const growthRate = 0.08; 
+            // Timeline Alerts & Growth Logic
+            let growthMultiplier = 1.0;
+            if (gameTime >= 55) {
+                growthMultiplier = 3.0;
+                uiClock.style.color = '#ff0000';
+                
+                if (!alert55Triggered) {
+                    showPopup("ALERT: Countdown! Weeds growing 3x faster!", "#ff0000");
+                    alert55Triggered = true;
+                }
+            } else if (gameTime >= 30) {
+                growthMultiplier = 1.5;
+                
+                if (!alert30Triggered) {
+                    showPopup("ALERT: Weeds are growing 1.5x faster!", "#ffaa00");
+                    alert30Triggered = true;
+                }
+            }
 
             if (gameTime < 60) {
                 let s = Math.floor(gameTime);
-                uiClock.innerText = `0:${(s % 60).toString().padStart(2, '0')}`;
+                let display = `0:${(s % 60).toString().padStart(2, '0')}`;
+                if (gameTime >= 55) {
+                    display += ` (${60 - s})`; 
+                }
+                uiClock.innerText = display;
             } else {
-                endGame(true); // Victory
+                endGame(true); 
                 return;
             }
 
-            // Occasional spawn
-            if (Math.random() < 0.3 * dt && weeds.length < 30) spawnWeed();
+            if (freezeTimer > 0) {
+                freezeTimer -= dt;
+            } else {
+                if (Math.random() < 0.3 * dt * growthMultiplier && weeds.length < 50) spawnWeed();
 
-            weeds.forEach(w => {
-                if (w.active) {
-                    w.mesh.scale.y += growthRate * dt;
-                    if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
-                        endGame(false); // Fail
+                weeds.forEach(w => {
+                    if (w.active) {
+                        w.mesh.scale.y += 0.08 * growthMultiplier * dt;
+                        if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
+                            endGame(false); 
+                        }
                     }
-                }
-            });
+                });
+            }
 
-            // Forgiving Area-of-Effect Spray Mechanics
+            // Spray Mechanics
             if (isShooting) {
-                const sprayRange = 12.0; 
-                
                 weeds.forEach(w => {
                     if (!w.active) return;
-                    // Calculate distance to player
                     const dist = w.mesh.position.distanceTo(player.position);
                     if (dist < sprayRange) {
-                        // Check if weed is roughly in front of player
                         const dirToWeed = w.mesh.position.clone().sub(player.position).normalize();
                         const playerForward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, player.rotation.y, 0));
                         const dot = dirToWeed.dot(playerForward);
                         
-                        // Wide angle cone (dot > 0 = 180 degrees in front)
-                        if (dot > 0.2) {
-                            w.mesh.scale.y -= 15.0 * dt; // Melts weeds instantly
+                        if (dot > 0.4) { 
+                            w.mesh.scale.y -= 15.0 * dt; 
                             if (w.mesh.scale.y <= 0.1) {
                                 w.active = false;
                                 w.mesh.visible = false;
@@ -379,13 +561,12 @@
                 
                 const pDir = new THREE.Vector3(0, 0, -1);
                 pDir.applyEuler(new THREE.Euler(cameraPivot.rotation.x, player.rotation.y, 0));
-                pDir.add(new THREE.Vector3((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, 0)); // Wide spread
+                pDir.add(new THREE.Vector3((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, 0)); 
                 
                 scene.add(p);
                 particles.push({ mesh: p, dir: pDir, life: 0.6 });
             }
 
-            // Particle Physics
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.mesh.position.addScaledVector(p.dir, 25 * dt);
