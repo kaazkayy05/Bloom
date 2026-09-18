@@ -167,7 +167,6 @@
         dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
 
-        // Physics Colliders Array
         const colliders = [];
 
         function addCollider(obj) {
@@ -176,9 +175,8 @@
             colliders.push(box);
         }
 
-        // Ground (Dirt)
         const groundGeo = new THREE.BoxGeometry(100, 1, 100);
-        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5C4033 });
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5C4033 }); // Dirt brown
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.position.y = -0.5;
         ground.receiveShadow = true;
@@ -186,7 +184,6 @@
 
         const sceneryGroup = new THREE.Group();
 
-        // Sparse Grass Tufts
         const grassTuftGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
         grassTuftGeo.translate(0, 0.1, 0);
         const grassTuftMat = new THREE.MeshLambertMaterial({ color: 0x4a6b10 });
@@ -200,7 +197,6 @@
         }
         sceneryGroup.add(grassTufts);
 
-        // Barn
         const barnBase = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 16), new THREE.MeshLambertMaterial({ color: 0x8b2b2b }));
         barnBase.position.set(-20, 4, -30);
         barnBase.castShadow = true;
@@ -211,7 +207,6 @@
         sceneryGroup.add(barnBase, barnRoof);
         addCollider(barnBase);
 
-        // Fences
         const fenceMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
         function addFenceSegment(x, z, rot) {
             const f = new THREE.Group();
@@ -234,7 +229,6 @@
             addFenceSegment(40, -10 + i*5, Math.PI/2); 
         }
         
-        // Cows
         function createCow(x, z, rot) {
             const cow = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 2.4), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
@@ -262,7 +256,6 @@
 
         scene.add(sceneryGroup);
 
-        // --- PLAYER SETUP ---
         const player = new THREE.Group();
         player.position.set(0, 0, 0);
 
@@ -302,11 +295,10 @@
         const playerBoxSize = new THREE.Vector3(1.2, 2.5, 1.2); 
         const playerBox = new THREE.Box3();
 
-        // --- WEEDS ---
         const weeds = [];
         const weedGeo = new THREE.BoxGeometry(1, 1, 1);
         weedGeo.translate(0, 0.5, 0); 
-        const weedMat = new THREE.MeshLambertMaterial({ color: 0xFF00FF }); // High contrast Magenta
+        const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 }); // Restored olive color
         let weedIdCounter = 0;
 
         function getValidSpawnPosition() {
@@ -338,7 +330,6 @@
 
         for (let i = 0; i < 15; i++) spawnWeed();
 
-        // --- POWERUPS ---
         const powerups = [];
         const puGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
         const mats = {
@@ -370,6 +361,7 @@
         
         let alert30Triggered = false;
         let alert55Triggered = false;
+        let alertDangerTriggered = false;
 
         const clock = new THREE.Clock();
         
@@ -485,7 +477,7 @@
                 }
             }
 
-            // AABB Collision Movement
+            // AABB Collision Movement Fix
             let moveX = 0;
             let moveZ = 0;
             if (keys.KeyW) moveZ -= 1;
@@ -495,22 +487,18 @@
             
             if (moveX !== 0 || moveZ !== 0) {
                 const moveVec = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                moveVec.applyEuler(new THREE.Euler(0, player.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
                 
-                const deltaX = new THREE.Vector3(moveVec.x, 0, 0).applyEuler(new THREE.Euler(0, player.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
-                const deltaZ = new THREE.Vector3(0, 0, moveVec.z).applyEuler(new THREE.Euler(0, player.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
-
-                let nextPos = player.position.clone();
-                
-                nextPos.x += deltaX.x;
-                nextPos.z += deltaX.z;
-                playerBox.setFromCenterAndSize(new THREE.Vector3(nextPos.x, 1.25, player.position.z), playerBoxSize);
+                // Test X axis independently
+                playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x + moveVec.x, 1.25, player.position.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
-                    player.position.x = nextPos.x;
+                    player.position.x += moveVec.x;
                 }
 
-                playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x, 1.25, nextPos.z), playerBoxSize);
+                // Test Z axis independently
+                playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x, 1.25, player.position.z + moveVec.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
-                    player.position.z = nextPos.z;
+                    player.position.z += moveVec.z;
                 }
                 
                 player.position.x = Math.max(-48, Math.min(48, player.position.x));
@@ -545,6 +533,8 @@
                 return;
             }
 
+            let maxWeedHeight = 0;
+
             if (freezeTimer > 0) {
                 freezeTimer -= dt;
             } else {
@@ -554,16 +544,30 @@
                     if (w.active) {
                         w.mesh.scale.y += 0.08 * growthMultiplier * dt;
                         
-                        // Breathing animation for high visibility
+                        // Breathing animation
                         const breath = 0.8 + Math.sin(gameTime * 5 + w.id) * 0.15;
                         w.mesh.scale.x = breath;
                         w.mesh.scale.z = breath;
+
+                        if (w.mesh.scale.y > maxWeedHeight) {
+                            maxWeedHeight = w.mesh.scale.y;
+                        }
 
                         if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
                             endGame(false); 
                         }
                     }
                 });
+            }
+
+            // Dynamic Weed Danger Alert
+            if (maxWeedHeight >= FATAL_WEED_SIZE * 0.8) {
+                if (!alertDangerTriggered) {
+                    showPopup("WARNING: A weed is reaching critical height!", "#ff4400");
+                    alertDangerTriggered = true;
+                }
+            } else {
+                alertDangerTriggered = false; 
             }
 
             if (isShooting) {
