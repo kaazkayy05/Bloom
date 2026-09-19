@@ -195,7 +195,7 @@
         scene.add(sceneryGroup);
 
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(-25, 0, 20); // Reverted player back to original weed zone
+        playerGroup.position.set(-25, 0, 20); 
         
         const gun = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 1.0), new THREE.MeshLambertMaterial({ color: 0x333333 }));
         gun.position.set(0.85, 1.2, -0.5);
@@ -231,11 +231,10 @@
             btn.disabled = false;
 
             if (baseCowModel) {
-                // Reverted cattle to original right side zone
                 const positions = [
-                    { x: 20, z: 5, rot: Math.PI/4 },
-                    { x: 30, z: 0, rot: -Math.PI/3 },
-                    { x: 25, z: 12, rot: Math.PI }
+                    { x: 10, z: 5, rot: Math.PI/4 },
+                    { x: 20, z: 0, rot: -Math.PI/3 },
+                    { x: 15, z: 12, rot: Math.PI }
                 ];
                 positions.forEach(p => {
                     const cow = baseCowModel.clone();
@@ -274,11 +273,10 @@
                     }
                 }
 
-                // Reverted fences to original right side zone (10 to 40, -10 to 20)
-                buildWall(10, -10, 40, -10, 4, 0); 
-                buildWall(10, 20, 40, 20, 4, 0); 
-                buildWall(10, -10, 10, 20, 4, Math.PI/2); 
-                buildWall(40, -10, 40, 20, 4, Math.PI/2); 
+                buildWall(0, -10, 30, -10, 4, 0); 
+                buildWall(0, 20, 30, 20, 4, 0); 
+                buildWall(0, -10, 0, 20, 4, Math.PI/2); 
+                buildWall(30, -10, 30, 20, 4, Math.PI/2); 
             }
             
             for (let i = 0; i < 40; i++) spawnWeed();
@@ -310,9 +308,8 @@
             });
         }
 
-        // Reverted windmill to original back left corner
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
-            object.position.set(-20, 0, -30);
+            object.position.set(-20, 0, -15);
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
             addCollider(object);
@@ -386,7 +383,6 @@
             let spawnBox = new THREE.Box3();
             let attempts = 0;
             while (!valid && attempts < 20) {
-                // Reverted back to the original left side spawning bounds
                 x = -25 + (Math.random() - 0.5) * 40; 
                 z = 20 + (Math.random() - 0.5) * 40; 
 
