@@ -229,7 +229,6 @@
             btn.innerText = "Start Game";
             btn.disabled = false;
 
-            // Spawn Custom Cows
             if (baseCowModel) {
                 const positions = [
                     { x: 20, z: 5, rot: Math.PI/4 },
@@ -246,7 +245,6 @@
                 });
             }
 
-            // Spawn Custom Fences
             if (baseFenceModel && baseFencePostModel) {
                 function spawnCustomFence(x, z, rot) {
                     const post = baseFencePostModel.clone();
@@ -275,6 +273,35 @@
         };
 
         const mtlLoader = new THREE.MTLLoader(manager);
+
+        // Utility to fix missing normals in voxel meshes and apply soft materials
+        function fixModelLighting(object) {
+            object.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    if (child.geometry) {
+                        child.geometry.computeVertexNormals();
+                    }
+                    
+                    if (child.material) {
+                        const applyLambert = (mat) => new THREE.MeshLambertMaterial({
+                            map: mat.map || null,
+                            color: mat.map ? 0xffffff : (mat.color || 0xffffff),
+                            side: THREE.DoubleSide,
+                            alphaTest: 0.5
+                        });
+                        
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(applyLambert);
+                        } else {
+                            child.material = applyLambert(child.material);
+                        }
+                    }
+                }
+            });
+        }
         
         // Load Windmill
         mtlLoader.load('assets/TVS_VoxelFarm_Windmill.mtl', (materials) => {
@@ -282,12 +309,7 @@
             const loader = new THREE.OBJLoader(manager);
             loader.setMaterials(materials);
             loader.load('assets/TVS_VoxelFarm_Windmill.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 object.position.set(-20, 0, -30);
                 object.scale.set(0.8, 0.8, 0.8); 
                 sceneryGroup.add(object);
@@ -301,12 +323,7 @@
             const loader = new THREE.OBJLoader(manager);
             loader.setMaterials(materials);
             loader.load('assets/TVS_VoxelFarm_Cow.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 baseCowModel = object;
             });
         });
@@ -317,12 +334,7 @@
             const loader = new THREE.OBJLoader(manager);
             loader.setMaterials(materials);
             loader.load('assets/TVS_VoxelFarm_Fence.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 baseFenceModel = object;
             });
         });
@@ -333,12 +345,7 @@
             const loader = new THREE.OBJLoader(manager);
             loader.setMaterials(materials);
             loader.load('assets/TVS_VoxelFarm_FencePost.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 baseFencePostModel = object;
             });
         });
@@ -349,12 +356,7 @@
             const farmerLoader = new THREE.OBJLoader(manager);
             farmerLoader.setMaterials(materials);
             farmerLoader.load('assets/TVS_VoxelFarm_Farmer.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 object.position.set(0, 0, 0); 
                 object.scale.set(0.8, 0.8, 0.8);
                 player.add(object);
@@ -368,14 +370,24 @@
             grassLoader.setMaterials(materials);
             grassLoader.load('assets/Grass_1.obj', (object) => {
                 let grassGeo = null;
+                let grassTex = null;
                 object.traverse((child) => {
                     if (child.isMesh && !grassGeo) {
                         grassGeo = child.geometry.clone();
+                        grassGeo.computeVertexNormals();
+                        if (child.material && child.material.map) {
+                            grassTex = child.material.map;
+                        }
                     }
                 });
 
                 if (grassGeo) {
-                    const grassMat = new THREE.MeshLambertMaterial({ color: 0x2d8a2d }); 
+                    const grassMat = new THREE.MeshLambertMaterial({ 
+                        color: 0x2d8a2d, 
+                        map: grassTex, 
+                        side: THREE.DoubleSide, 
+                        alphaTest: 0.5 
+                    }); 
                     const instancedGrass = new THREE.InstancedMesh(grassGeo, grassMat, 1500);
                     instancedGrass.receiveShadow = true;
                     
@@ -398,12 +410,7 @@
             const weedLoader = new THREE.OBJLoader(manager);
             weedLoader.setMaterials(materials);
             weedLoader.load('assets/TVS_VoxelFarm_YoungPlant.obj', (object) => {
-                object.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+                fixModelLighting(object);
                 baseWeedModel = object;
             });
         });
