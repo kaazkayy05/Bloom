@@ -185,6 +185,7 @@
         const sprayAudio = new THREE.Audio(listener);
         const popAudio = new THREE.Audio(listener);
         const powerupAudio = new THREE.Audio(listener);
+        const winAudio = new THREE.Audio(listener);
         const audioLoader = new THREE.AudioLoader();
 
         audioLoader.load('assets/west_wolf_Chicken_farm.mp3', (buffer) => {
@@ -212,6 +213,11 @@
         audioLoader.load('assets/Game-bonus-reward.mp3', (buffer) => {
             powerupAudio.setBuffer(buffer);
             powerupAudio.setVolume(0.35);
+        });
+
+        audioLoader.load('assets/Marimba-win-success-level-complete-mobile-game.mp3', (buffer) => {
+            winAudio.setBuffer(buffer);
+            winAudio.setVolume(0.4);
         });
 
         function playAlertSound() {
@@ -624,6 +630,7 @@
             if (farmAudio.isPlaying) farmAudio.stop();
             document.exitPointerLock();
             if (victory) {
+                if (winAudio.buffer) winAudio.play();
                 document.getElementById('victory-screen').style.display = 'flex';
             } else {
                 document.getElementById('game-over-screen').style.display = 'flex';
