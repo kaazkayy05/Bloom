@@ -195,65 +195,31 @@
         const sceneryGroup = new THREE.Group();
         scene.add(sceneryGroup);
 
-        const barnBase = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 16), new THREE.MeshLambertMaterial({ color: 0x8b2b2b }));
-        barnBase.position.set(-20, 4, -30);
-        barnBase.castShadow = true;
-        barnBase.receiveShadow = true;
-        const barnRoof = new THREE.Mesh(new THREE.BoxGeometry(18, 4, 18), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-        barnRoof.position.set(-20, 10, -30);
-        barnRoof.castShadow = true;
-        sceneryGroup.add(barnBase, barnRoof);
-        addCollider(barnBase);
-
-        const fenceMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-        function addFenceSegment(x, z, rot) {
-            const f = new THREE.Group();
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.0, 0.6), fenceMat);
-            const rail1 = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.4, 0.2), fenceMat);
-            rail1.position.set(2, 1.2, 0);
-            const rail2 = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.4, 0.2), fenceMat);
-            rail2.position.set(2, 0.5, 0);
-            f.add(post, rail1, rail2);
-            f.position.set(x, 1.0, z);
-            f.rotation.y = rot;
-            f.traverse(c => { if(c.isMesh) c.castShadow = true; });
-            sceneryGroup.add(f);
-            addCollider(f);
-        }
-        for(let i=0; i<6; i++) {
-            addFenceSegment(10 + i*5, -10, 0); 
-            addFenceSegment(10 + i*5, 20, 0);  
-            addFenceSegment(10, -10 + i*5, Math.PI/2); 
-            addFenceSegment(40, -10 + i*5, Math.PI/2); 
-        }
+        const player = new THREE.Group();
+        player.position.set(-25, 0, 20);
         
-        function createCow(x, z, rot) {
-            const cow = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 2.4), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
-            body.position.y = 1.0;
-            const spot1 = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.8, 0.8), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-            spot1.position.set(0, 1.0, 0.4);
-            const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), new THREE.MeshLambertMaterial({ color: 0xFFFFFF }));
-            head.position.set(0, 1.6, 1.4);
-            const legGeo = new THREE.BoxGeometry(0.4, 1.0, 0.4);
-            const legMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-            const fl = new THREE.Mesh(legGeo, legMat); fl.position.set(0.5, 0.5, 0.9);
-            const fr = new THREE.Mesh(legGeo, legMat); fr.position.set(-0.5, 0.5, 0.9);
-            const bl = new THREE.Mesh(legGeo, legMat); bl.position.set(0.5, 0.5, -0.9);
-            const br = new THREE.Mesh(legGeo, legMat); br.position.set(-0.5, 0.5, -0.9);
-            cow.add(body, spot1, head, fl, fr, bl, br);
-            cow.position.set(x, 0, z);
-            cow.rotation.y = rot;
-            cow.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-            sceneryGroup.add(cow);
-            addCollider(cow);
-        }
-        createCow(20, 5, Math.PI/4);
-        createCow(30, 0, -Math.PI/3);
-        createCow(25, 12, Math.PI);
+        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+        gun.position.set(0.7, 1.4, -1.0);
+        gun.castShadow = true;
+        player.add(gun);
+        scene.add(player);
+
+        const cameraPivot = new THREE.Group();
+        cameraPivot.position.set(0.8, 2.0, 0); 
+        player.add(cameraPivot);
+        
+        camera.position.set(0, 0.2, 6); 
+        camera.lookAt(0, 0.5, -10);
+        cameraPivot.add(camera);
+
+        const playerBoxSize = new THREE.Vector3(1.2, 2.5, 1.2); 
+        const playerBox = new THREE.Box3();
 
         // --- ASSET LOADER ---
         let baseWeedModel = null;
+        let baseCowModel = null;
+        let baseFenceModel = null;
+        let baseFencePostModel = null;
         let weeds = [];
         let weedIdCounter = 0;
 
@@ -262,14 +228,140 @@
             const btn = document.getElementById('start-btn');
             btn.innerText = "Start Game";
             btn.disabled = false;
+
+            // Spawn Custom Cows
+            if (baseCowModel) {
+                const positions = [
+                    { x: 20, z: 5, rot: Math.PI/4 },
+                    { x: 30, z: 0, rot: -Math.PI/3 },
+                    { x: 25, z: 12, rot: Math.PI }
+                ];
+                positions.forEach(p => {
+                    const cow = baseCowModel.clone();
+                    cow.position.set(p.x, 0, p.z);
+                    cow.rotation.y = p.rot;
+                    cow.scale.set(0.5, 0.5, 0.5); 
+                    sceneryGroup.add(cow);
+                    addCollider(cow);
+                });
+            }
+
+            // Spawn Custom Fences
+            if (baseFenceModel && baseFencePostModel) {
+                function spawnCustomFence(x, z, rot) {
+                    const post = baseFencePostModel.clone();
+                    post.position.set(x, 0, z);
+                    post.scale.set(0.5, 0.5, 0.5);
+                    sceneryGroup.add(post);
+                    addCollider(post);
+
+                    const fence = baseFenceModel.clone();
+                    fence.position.set(x, 0, z);
+                    fence.rotation.y = rot;
+                    fence.scale.set(0.5, 0.5, 0.5);
+                    sceneryGroup.add(fence);
+                    addCollider(fence);
+                }
+
+                for(let i=0; i<6; i++) {
+                    spawnCustomFence(10 + i*5, -10, 0); 
+                    spawnCustomFence(10 + i*5, 20, 0);  
+                    spawnCustomFence(10, -10 + i*5, Math.PI/2); 
+                    spawnCustomFence(40, -10 + i*5, Math.PI/2); 
+                }
+            }
             
             for (let i = 0; i < 40; i++) spawnWeed();
         };
 
         const mtlLoader = new THREE.MTLLoader(manager);
-        const objLoader = new THREE.OBJLoader(manager);
+        
+        // Load Windmill
+        mtlLoader.load('assets/TVS_VoxelFarm_Windmill.mtl', (materials) => {
+            materials.preload();
+            const loader = new THREE.OBJLoader(manager);
+            loader.setMaterials(materials);
+            loader.load('assets/TVS_VoxelFarm_Windmill.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                object.position.set(-20, 0, -30);
+                object.scale.set(0.8, 0.8, 0.8); 
+                sceneryGroup.add(object);
+                addCollider(object);
+            });
+        });
 
-        // Load Grass Assets
+        // Load Cow
+        mtlLoader.load('assets/TVS_VoxelFarm_Cow.mtl', (materials) => {
+            materials.preload();
+            const loader = new THREE.OBJLoader(manager);
+            loader.setMaterials(materials);
+            loader.load('assets/TVS_VoxelFarm_Cow.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                baseCowModel = object;
+            });
+        });
+
+        // Load Fence Panel
+        mtlLoader.load('assets/TVS_VoxelFarm_Fence.mtl', (materials) => {
+            materials.preload();
+            const loader = new THREE.OBJLoader(manager);
+            loader.setMaterials(materials);
+            loader.load('assets/TVS_VoxelFarm_Fence.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                baseFenceModel = object;
+            });
+        });
+
+        // Load Fence Post
+        mtlLoader.load('assets/TVS_VoxelFarm_FencePost.mtl', (materials) => {
+            materials.preload();
+            const loader = new THREE.OBJLoader(manager);
+            loader.setMaterials(materials);
+            loader.load('assets/TVS_VoxelFarm_FencePost.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                baseFencePostModel = object;
+            });
+        });
+
+        // Load Farmer Player
+        mtlLoader.load('assets/TVS_VoxelFarm_Farmer.mtl', (materials) => {
+            materials.preload();
+            const farmerLoader = new THREE.OBJLoader(manager);
+            farmerLoader.setMaterials(materials);
+            farmerLoader.load('assets/TVS_VoxelFarm_Farmer.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                object.position.set(0, 0, 0); 
+                object.scale.set(0.8, 0.8, 0.8);
+                player.add(object);
+            });
+        });
+
+        // Load Grass
         mtlLoader.load('assets/Grass_1.mtl', (materials) => {
             materials.preload();
             const grassLoader = new THREE.OBJLoader(manager);
@@ -300,7 +392,7 @@
             });
         });
 
-        // Load Weed Assets
+        // Load Weed
         mtlLoader.load('assets/TVS_VoxelFarm_YoungPlant.mtl', (materials) => {
             materials.preload();
             const weedLoader = new THREE.OBJLoader(manager);
@@ -315,45 +407,6 @@
                 baseWeedModel = object;
             });
         });
-
-        const player = new THREE.Group();
-        player.position.set(-25, 0, 20);
-
-        const pMat = new THREE.MeshLambertMaterial({ color: 0x0000ff }); 
-        const sMat = new THREE.MeshLambertMaterial({ color: 0xf9e3cc }); 
-        
-        const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), pMat);
-        body.position.y = 1.25;
-        body.castShadow = true;
-        
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), sMat);
-        head.position.y = 2.25;
-        head.castShadow = true;
-        
-        const armRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), sMat);
-        armRight.position.set(0.7, 1.4, -0.4); 
-        armRight.rotation.x = -Math.PI / 2;
-        armRight.castShadow = true;
-
-        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-        gun.position.set(0.7, 1.4, -1.0);
-        gun.castShadow = true;
-        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x7c8a04 })); 
-        tank.position.set(0.7, 1.7, -0.7);
-
-        player.add(body, head, armRight, gun, tank);
-        scene.add(player);
-
-        const cameraPivot = new THREE.Group();
-        cameraPivot.position.set(0.8, 2.0, 0); 
-        player.add(cameraPivot);
-        
-        camera.position.set(0, 0.2, 6); 
-        camera.lookAt(0, 0.5, -10);
-        cameraPivot.add(camera);
-
-        const playerBoxSize = new THREE.Vector3(1.2, 2.5, 1.2); 
-        const playerBox = new THREE.Box3();
 
         function getValidSpawnPosition() {
             let valid = false;
@@ -653,7 +706,8 @@
                 });
 
                 const p = new THREE.Mesh(particleGeo, particleMat);
-                const nozzlePos = new THREE.Vector3(0.7, 1.4, -1.8);
+                
+                const nozzlePos = new THREE.Vector3(0, 1.0, -1.0);
                 player.localToWorld(nozzlePos);
                 p.position.copy(nozzlePos);
                 
