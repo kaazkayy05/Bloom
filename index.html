@@ -197,8 +197,8 @@
         const playerGroup = new THREE.Group();
         playerGroup.position.set(-15, 0, 10);
         
-        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.8), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-        gun.position.set(1.4, 1.1, -0.8);
+        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 1.0), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+        gun.position.set(0.85, 1.2, -0.5);
         gun.castShadow = true;
         playerGroup.add(gun);
         
@@ -232,9 +232,9 @@
 
             if (baseCowModel) {
                 const positions = [
-                    { x: 12, z: 12, rot: Math.PI/4 },
-                    { x: 20, z: 10, rot: -Math.PI/3 },
-                    { x: 16, z: 20, rot: Math.PI }
+                    { x: 20, z: -20, rot: Math.PI/4 },
+                    { x: 30, z: -25, rot: -Math.PI/3 },
+                    { x: 25, z: -15, rot: Math.PI }
                 ];
                 positions.forEach(p => {
                     const cow = baseCowModel.clone();
@@ -247,28 +247,40 @@
             }
 
             if (baseFenceModel && baseFencePostModel) {
-                function spawnCustomFence(x, z, rot) {
-                    const post = baseFencePostModel.clone();
-                    post.position.set(x, 0, z);
-                    post.rotation.y = rot + Math.PI/2; 
-                    post.scale.set(2.5, 2.5, 2.5); 
-                    sceneryGroup.add(post);
-                    addCollider(post);
+                function buildWall(startX, startZ, endX, endZ, segments, rot) {
+                    const dx = (endX - startX) / segments;
+                    const dz = (endZ - startZ) / segments;
+                    
+                    for(let i = 0; i <= segments; i++) {
+                        const x = startX + dx * i;
+                        const z = startZ + dz * i;
+                        
+                        // Place Posts
+                        const post = baseFencePostModel.clone();
+                        post.position.set(x, 0, z);
+                        post.scale.set(2.5, 2.5, 2.5);
+                        sceneryGroup.add(post);
+                        addCollider(post);
 
-                    const fence = baseFenceModel.clone();
-                    fence.position.set(x, 0, z);
-                    fence.rotation.y = rot + Math.PI/2; 
-                    fence.scale.set(2.5, 2.5, 2.5);
-                    sceneryGroup.add(fence);
-                    addCollider(fence);
+                        // Place Rails exactly halfway between posts
+                        if (i < segments) {
+                            const panel = baseFenceModel.clone();
+                            panel.position.set(x + dx/2, 0, z + dz/2);
+                            panel.rotation.y = rot; 
+                            panel.scale.set(2.5, 2.5, 2.5);
+                            sceneryGroup.add(panel);
+                            addCollider(panel);
+                        }
+                    }
                 }
 
-                for(let i=0; i<4; i++) {
-                    spawnCustomFence(5 + i*7.5, 5, 0);   
-                    spawnCustomFence(5 + i*7.5, 27.5, 0);  
-                    spawnCustomFence(5, 5 + i*7.5, Math.PI/2); 
-                    spawnCustomFence(27.5, 5 + i*7.5, Math.PI/2); 
-                }
+                // Front & Back walls (along X)
+                buildWall(10, -35, 35, -35, 6, 0); 
+                buildWall(10, -10, 35, -10, 6, 0); 
+                
+                // Left & Right walls (along Z)
+                buildWall(10, -35, 10, -10, 6, Math.PI/2); 
+                buildWall(35, -35, 35, -10, 6, Math.PI/2); 
             }
             
             for (let i = 0; i < 40; i++) spawnWeed();
@@ -301,7 +313,7 @@
         }
 
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
-            object.position.set(16, 0, -10);
+            object.position.set(22, 0, -42); // Moved back behind the pen bounds
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
             addCollider(object);
@@ -570,7 +582,7 @@
             if (isMoving) {
                 playerModelContainer.rotation.z = Math.sin(gameTime * 15) * 0.1;
                 playerModelContainer.position.y = Math.abs(Math.sin(gameTime * 15)) * 0.2;
-                gun.position.y = 1.1 + Math.abs(Math.sin(gameTime * 15)) * 0.2;
+                gun.position.y = 1.2 + Math.abs(Math.sin(gameTime * 15)) * 0.2;
                 
                 const moveVec = new THREE.Vector3(moveX, 0, moveZ).normalize();
                 moveVec.applyEuler(new THREE.Euler(0, playerGroup.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
@@ -590,7 +602,7 @@
             } else {
                 playerModelContainer.rotation.z = 0;
                 playerModelContainer.position.y = Math.sin(gameTime * 3) * 0.05;
-                gun.position.y = 1.1 + Math.sin(gameTime * 3) * 0.05;
+                gun.position.y = 1.2 + Math.sin(gameTime * 3) * 0.05;
             }
 
             let growthMultiplier = 1.0;
@@ -683,7 +695,7 @@
                 for (let j = 0; j < 3; j++) {
                     const p = new THREE.Mesh(particleGeo, particleMat);
                     
-                    const nozzlePos = new THREE.Vector3(1.4, 1.1, -1.8);
+                    const nozzlePos = new THREE.Vector3(0.85, 1.2, -1.0);
                     playerGroup.localToWorld(nozzlePos);
                     p.position.copy(nozzlePos);
                     
