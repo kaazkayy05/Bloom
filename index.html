@@ -184,6 +184,7 @@
         const alertAudio = new THREE.Audio(listener);
         const sprayAudio = new THREE.Audio(listener);
         const popAudio = new THREE.Audio(listener);
+        const powerupAudio = new THREE.Audio(listener);
         const audioLoader = new THREE.AudioLoader();
 
         audioLoader.load('assets/west_wolf_Chicken_farm.mp3', (buffer) => {
@@ -208,6 +209,11 @@
             popAudio.setVolume(0.15); 
         });
 
+        audioLoader.load('assets/Game-bonus-reward.mp3', (buffer) => {
+            powerupAudio.setBuffer(buffer);
+            powerupAudio.setVolume(0.35);
+        });
+
         function playAlertSound() {
             if (alertAudio.buffer) {
                 if (alertAudio.isPlaying) alertAudio.stop();
@@ -219,6 +225,13 @@
             if (popAudio.buffer) {
                 if (popAudio.isPlaying) popAudio.stop();
                 popAudio.play();
+            }
+        }
+
+        function playPowerupSound() {
+            if (powerupAudio.buffer) {
+                if (powerupAudio.isPlaying) powerupAudio.stop();
+                powerupAudio.play();
             }
         }
 
@@ -645,6 +658,7 @@
                 p.mesh.position.y = 1.0 + Math.sin(gameTime * 3) * 0.2; 
 
                 if (p.mesh.position.distanceTo(playerGroup.position) < 2.0) {
+                    playPowerupSound();
                     if (p.type === 'SPEED') {
                         playerSpeed *= 1.1;
                         showPopup("SPEED powerup activated!", "#0088ff");
