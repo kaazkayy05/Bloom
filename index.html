@@ -335,15 +335,16 @@
             });
         }
 
+        // Moved windmill and barn closer to the weeds
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
-            object.position.set(-20, 0, -30);
+            object.position.set(-15, 0, -12);
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
             addCollider(object);
         });
 
         loadTexturedModel('assets/TVS_VoxelFarm_Barn.obj', 'assets/TVS_VoxelFarm_Barn_Texture.png', (object) => {
-            object.position.set(-5, 0, -40);
+            object.position.set(0, 0, -15);
             object.rotation.y = -Math.PI / 6;
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
