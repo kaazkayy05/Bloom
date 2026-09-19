@@ -150,7 +150,7 @@
         let freezeTimer = 0;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf5ccba); // Soft pinkish-orange sky
+        scene.background = new THREE.Color(0xf5ccba); 
         scene.fog = new THREE.Fog(0xf5ccba, 20, 75);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -163,13 +163,11 @@
         renderer.shadowMap.type = THREE.BasicShadowMap; 
         document.body.appendChild(renderer.domElement);
 
-        // Soft grayish-blue ambient fill light
         const ambientLight = new THREE.AmbientLight(0xc2cada, 0.85);
         scene.add(ambientLight);
 
-        // Sunset orange directional light
         const dirLight = new THREE.DirectionalLight(0xdaa056, 1.1);
-        dirLight.position.set(-45, 15, 35); // Low angle, behind player start
+        dirLight.position.set(-45, 15, 35); 
         dirLight.castShadow = true;
         dirLight.shadow.camera.left = -50;
         dirLight.shadow.camera.right = 50;
@@ -303,11 +301,11 @@
         });
 
         // Load Weed Assets
-        mtlLoader.load('assets/Wheat_2.mtl', (materials) => {
+        mtlLoader.load('assets/TVS_VoxelFarm_YoungPlant.mtl', (materials) => {
             materials.preload();
             const weedLoader = new THREE.OBJLoader(manager);
             weedLoader.setMaterials(materials);
-            weedLoader.load('assets/Wheat_2.obj', (object) => {
+            weedLoader.load('assets/TVS_VoxelFarm_YoungPlant.obj', (object) => {
                 object.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -322,7 +320,7 @@
         player.position.set(-25, 0, 20);
 
         const pMat = new THREE.MeshLambertMaterial({ color: 0x0000ff }); 
-        const sMat = new THREE.MeshLambertMaterial({ color: 0xf9e3cc }); // Updated to softer skin tone
+        const sMat = new THREE.MeshLambertMaterial({ color: 0xf9e3cc }); 
         
         const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), pMat);
         body.position.y = 1.25;
@@ -340,7 +338,7 @@
         const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
         gun.position.set(0.7, 1.4, -1.0);
         gun.castShadow = true;
-        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x7c8a04 })); // Updated accent green
+        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x7c8a04 })); 
         tank.position.set(0.7, 1.7, -0.7);
 
         player.add(body, head, armRight, gun, tank);
@@ -350,7 +348,6 @@
         cameraPivot.position.set(0.8, 2.0, 0); 
         player.add(cameraPivot);
         
-        // Slightly lower camera angle
         camera.position.set(0, 0.2, 6); 
         camera.lookAt(0, 0.5, -10);
         cameraPivot.add(camera);
@@ -386,7 +383,7 @@
             
             weed.userData = {
                 id: weedIdCounter++,
-                currentHeight: 0.3 // Starts taller to avoid hiding in pixelation
+                currentHeight: 0.3 
             };
             
             weed.scale.set(WEED_BASE_SCALE, weed.userData.currentHeight, WEED_BASE_SCALE);
@@ -431,7 +428,7 @@
         
         const particles = [];
         const particleGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
-        const particleMat = new THREE.MeshBasicMaterial({ color: 0xc2cada }); // Soft blue spray
+        const particleMat = new THREE.MeshBasicMaterial({ color: 0xc2cada }); 
 
         let yaw = 0;
         let pitch = 0;
