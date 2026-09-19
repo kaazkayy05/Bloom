@@ -181,12 +181,46 @@
         camera.add(listener);
 
         const farmAudio = new THREE.Audio(listener);
+        const alertAudio = new THREE.Audio(listener);
+        const sprayAudio = new THREE.Audio(listener);
+        const popAudio = new THREE.Audio(listener);
         const audioLoader = new THREE.AudioLoader();
+
         audioLoader.load('assets/west_wolf_Chicken_farm.mp3', (buffer) => {
             farmAudio.setBuffer(buffer);
             farmAudio.setLoop(true);
-            farmAudio.setVolume(0.15); // Quiet background noise
+            farmAudio.setVolume(0.15); 
         });
+
+        audioLoader.load('assets/zapsplat_multimedia_alert_ui_software_game_compete_tone_113737.mp3', (buffer) => {
+            alertAudio.setBuffer(buffer);
+            alertAudio.setVolume(0.35); 
+        });
+
+        audioLoader.load('assets/zapsplat_industrial_pressure_washer_spraying_cleaning_plastic_bin_003_88312.mp3', (buffer) => {
+            sprayAudio.setBuffer(buffer);
+            sprayAudio.setLoop(true);
+            sprayAudio.setVolume(0.4);
+        });
+
+        audioLoader.load('assets/zapsplat_multimedia_game_sound_bubble_pop_retro_designed_002_88723.mp3', (buffer) => {
+            popAudio.setBuffer(buffer);
+            popAudio.setVolume(0.15); 
+        });
+
+        function playAlertSound() {
+            if (alertAudio.buffer) {
+                if (alertAudio.isPlaying) alertAudio.stop();
+                alertAudio.play();
+            }
+        }
+
+        function playPopSound() {
+            if (popAudio.buffer) {
+                if (popAudio.isPlaying) popAudio.stop();
+                popAudio.play();
+            }
+        }
 
         const colliders = [];
 
@@ -516,14 +550,26 @@
             } else {
                 document.getElementById('start-screen').style.display = 'flex';
                 isPlaying = false;
+                isShooting = false;
+                if (sprayAudio.isPlaying) sprayAudio.stop();
             }
         });
 
         document.addEventListener('pointerdown', (e) => { 
-            if (isPlaying && e.button === 0) isShooting = true; 
+            if (isPlaying && e.button === 0) {
+                isShooting = true;
+                if (sprayAudio.buffer && !sprayAudio.isPlaying) {
+                    sprayAudio.play();
+                }
+            }
         });
         document.addEventListener('pointerup', (e) => { 
-            if (e.button === 0) isShooting = false; 
+            if (e.button === 0) {
+                isShooting = false;
+                if (sprayAudio.isPlaying) {
+                    sprayAudio.stop();
+                }
+            }
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -560,6 +606,9 @@
         function endGame(victory) {
             isPlaying = false;
             isGameOver = true;
+            isShooting = false;
+            if (sprayAudio.isPlaying) sprayAudio.stop();
+            if (farmAudio.isPlaying) farmAudio.stop();
             document.exitPointerLock();
             if (victory) {
                 document.getElementById('victory-screen').style.display = 'flex';
@@ -572,7 +621,10 @@
             requestAnimationFrame(animate);
             if (!isPlaying) return;
 
-            if (document.pointerLockElement !== document.body) isShooting = false;
+            if (document.pointerLockElement !== document.body) {
+                isShooting = false;
+                if (sprayAudio.isPlaying) sprayAudio.stop();
+            }
 
             const dt = clock.getDelta();
             gameTime += dt;
@@ -604,7 +656,10 @@
                         showPopup("FREEZE powerup activated!", "#00ffff");
                     } else if (p.type === 'NUKE') {
                         weeds.forEach(w => {
-                            if (w.active) w.active = false; 
+                            if (w.active) {
+                                w.active = false;
+                                playPopSound();
+                            }
                         });
                         showPopup("NUKE powerup activated!", "#ff00ff");
                     }
@@ -655,6 +710,7 @@
                 
                 if (!alert55Triggered) {
                     showPopup("ALERT: Countdown! Weeds growing 3x faster!", "#ff0000");
+                    playAlertSound();
                     alert55Triggered = true;
                 }
             } else if (gameTime >= 30) {
@@ -662,6 +718,7 @@
                 
                 if (!alert30Triggered) {
                     showPopup("ALERT: Weeds are growing 1.5x faster!", "#ffaa00");
+                    playAlertSound();
                     alert30Triggered = true;
                 }
             }
@@ -710,6 +767,7 @@
             if (maxWeedHeight >= FATAL_WEED_SIZE * 0.8) {
                 if (!alertDangerTriggered) {
                     showPopup("WARNING: A weed is reaching critical height!", "#ff4400");
+                    playAlertSound();
                     alertDangerTriggered = true;
                 }
             } else {
@@ -730,6 +788,7 @@
                             if (w.mesh.userData.currentHeight <= 0.1) {
                                 w.active = false;
                                 w.mesh.visible = false; 
+                                playPopSound();
                             }
                         }
                     }
