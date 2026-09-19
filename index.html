@@ -137,17 +137,12 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     
     <script>
-        const WEED_BASE_SCALE = 1.5; 
+        const WEED_BASE_SCALE = 1.0; 
         const FATAL_WEED_SIZE = 4.0;
         const RENDER_SCALE = 0.45; 
-        
-        // Adjust this if the animated farmer is too big or too small
-        const FBX_SCALE = 0.015;
 
         let playerSpeed = 15.0;
         let sprayRange = 14.0;
@@ -199,25 +194,29 @@
         const sceneryGroup = new THREE.Group();
         scene.add(sceneryGroup);
 
-        const player = new THREE.Group();
-        player.position.set(-25, 0, 20);
+        const playerGroup = new THREE.Group();
+        playerGroup.position.set(-25, 0, 20);
         
-        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.8), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-        // Moved gun slightly forward to look better with the idle animation
-        gun.position.set(0.8, 1.2, -1.2);
+        // Procedural gun tucked into the side of the model
+        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 1.0), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+        gun.position.set(0.5, 0.8, -0.4);
         gun.castShadow = true;
-        player.add(gun);
-        scene.add(player);
+        playerGroup.add(gun);
+        
+        // Player container to handle wobbling without rotating the camera
+        const playerModelContainer = new THREE.Group();
+        playerGroup.add(playerModelContainer);
+        scene.add(playerGroup);
 
         const cameraPivot = new THREE.Group();
-        cameraPivot.position.set(1.0, 2.5, 0); 
-        player.add(cameraPivot);
+        cameraPivot.position.set(0.8, 1.8, 0); 
+        playerGroup.add(cameraPivot);
         
-        camera.position.set(0, 0.5, 8); 
-        camera.lookAt(0, 0.5, -10);
+        camera.position.set(0, 0.2, 5); 
+        camera.lookAt(0, 0.2, -10);
         cameraPivot.add(camera);
 
-        const playerBoxSize = new THREE.Vector3(1.5, 3.0, 1.5); 
+        const playerBoxSize = new THREE.Vector3(1.0, 2.0, 1.0); 
         const playerBox = new THREE.Box3();
 
         let baseWeedModel = null;
@@ -226,11 +225,6 @@
         let baseFencePostModel = null;
         let weeds = [];
         let weedIdCounter = 0;
-
-        let playerMixer = null;
-        let idleAction = null;
-        let walkAction = null;
-        let isWalking = false;
 
         const manager = new THREE.LoadingManager();
         manager.onLoad = function () {
@@ -248,7 +242,7 @@
                     const cow = baseCowModel.clone();
                     cow.position.set(p.x, 0, p.z);
                     cow.rotation.y = p.rot;
-                    cow.scale.set(1.2, 1.2, 1.2); 
+                    cow.scale.set(0.5, 0.5, 0.5); 
                     sceneryGroup.add(cow);
                     addCollider(cow);
                 });
@@ -259,14 +253,14 @@
                     const post = baseFencePostModel.clone();
                     post.position.set(x, 0, z);
                     post.rotation.y = rot + Math.PI/2; 
-                    post.scale.set(1.5, 1.5, 1.5); 
+                    post.scale.set(0.6, 0.6, 0.6); 
                     sceneryGroup.add(post);
                     addCollider(post);
 
                     const fence = baseFenceModel.clone();
                     fence.position.set(x, 0, z);
                     fence.rotation.y = rot + Math.PI/2; 
-                    fence.scale.set(1.5, 1.5, 1.5);
+                    fence.scale.set(0.6, 0.6, 0.6);
                     sceneryGroup.add(fence);
                     addCollider(fence);
                 }
@@ -284,7 +278,6 @@
 
         const texLoader = new THREE.TextureLoader(manager);
         const objLoader = new THREE.OBJLoader(manager);
-        const fbxLoader = new THREE.FBXLoader(manager);
 
         function loadTexturedModel(objPath, texPath, onLoadCallback) {
             texLoader.load(texPath, (texture) => {
@@ -309,63 +302,37 @@
             });
         }
 
-        // Animated FBX Player
-        fbxLoader.load('assets/Human_Idle_Anim.fbx', (fbx) => {
-            fbx.scale.set(FBX_SCALE, FBX_SCALE, FBX_SCALE);
-            fbx.position.set(0, 0, 0); 
-            fbx.rotation.y = Math.PI; // Face away from camera
-
-            texLoader.load('assets/TVS_VoxelFarm_Farmer_Texture.png', (tex) => {
-                tex.magFilter = THREE.NearestFilter;
-                tex.minFilter = THREE.NearestFilter;
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        child.material = new THREE.MeshLambertMaterial({
-                            map: tex,
-                            side: THREE.DoubleSide,
-                            alphaTest: 0.5
-                        });
-                    }
-                });
-            });
-
-            playerMixer = new THREE.AnimationMixer(fbx);
-            if (fbx.animations.length > 0) {
-                idleAction = playerMixer.clipAction(fbx.animations[0]);
-                idleAction.play();
-            }
-            
-            player.add(fbx);
-
-            // Load Walk Animation and attach it to the mixer
-            fbxLoader.load('assets/Human_Walk_Anim.fbx', (animFbx) => {
-                if (animFbx.animations.length > 0) {
-                    walkAction = playerMixer.clipAction(animFbx.animations[0]);
-                }
-            });
-        });
-
+        // Windmill 
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
             object.position.set(-15, 0, 0);
-            object.scale.set(1.5, 1.5, 1.5); 
+            object.scale.set(0.8, 0.8, 0.8); 
             sceneryGroup.add(object);
             addCollider(object);
         });
 
+        // Cow
         loadTexturedModel('assets/TVS_VoxelFarm_Cow.obj', 'assets/TVS_VoxelFarm_Cow_Texture.png', (object) => {
             baseCowModel = object;
         });
 
+        // Fence
         loadTexturedModel('assets/TVS_VoxelFarm_Fence.obj', 'assets/TVS_VoxelFarm_Fence_Texture.png', (object) => {
             baseFenceModel = object;
         });
 
+        // Fence Post
         loadTexturedModel('assets/TVS_VoxelFarm_FencePost.obj', 'assets/TVS_VoxelFarm_FencePost_Texture.png', (object) => {
             baseFencePostModel = object;
         });
 
+        // Farmer Player
+        loadTexturedModel('assets/TVS_VoxelFarm_Farmer.obj', 'assets/TVS_VoxelFarm_Farmer_Texture.png', (object) => {
+            object.rotation.y = Math.PI; 
+            object.scale.set(0.6, 0.6, 0.6);
+            playerModelContainer.add(object);
+        });
+
+        // Grass 
         objLoader.load('assets/Grass_1.obj', (object) => {
             let grassGeo = null;
             object.traverse((child) => {
@@ -395,6 +362,7 @@
             }
         });
 
+        // Weed 
         objLoader.load('assets/TVS_VoxelFarm_YoungPlant.obj', (object) => {
             object.traverse((child) => {
                 if (child.isMesh) {
@@ -482,7 +450,7 @@
         const clock = new THREE.Clock();
         
         const particles = [];
-        const particleGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2); 
+        const particleGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15); 
         const particleMat = new THREE.MeshBasicMaterial({ color: 0xc2cada }); 
 
         let yaw = 0;
@@ -519,7 +487,7 @@
             pitch -= e.movementY * sensitivity;
             pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, pitch)); 
             
-            player.rotation.y = yaw;
+            playerGroup.rotation.y = yaw;
             cameraPivot.rotation.x = pitch;
         });
 
@@ -563,9 +531,6 @@
             const dt = clock.getDelta();
             gameTime += dt;
             
-            // Advance animation frames
-            if (playerMixer) playerMixer.update(dt);
-
             if (popupTimer > 0) {
                 popupTimer -= dt;
                 if (popupTimer <= 0) popupUI.style.opacity = 0;
@@ -581,7 +546,7 @@
                 p.mesh.rotation.y += dt * 2;
                 p.mesh.position.y = 1.0 + Math.sin(gameTime * 3) * 0.2; 
 
-                if (p.mesh.position.distanceTo(player.position) < 2.0) {
+                if (p.mesh.position.distanceTo(playerGroup.position) < 2.0) {
                     if (p.type === 'SPEED') {
                         playerSpeed *= 1.1;
                         showPopup("SPEED powerup activated!", "#0088ff");
@@ -611,33 +576,33 @@
             
             let isMoving = (moveX !== 0 || moveZ !== 0);
             
-            // Handle Animation Crossfading
-            if (isMoving && !isWalking && walkAction) {
-                walkAction.reset().fadeIn(0.2).play();
-                if (idleAction) idleAction.fadeOut(0.2);
-                isWalking = true;
-            } else if (!isMoving && isWalking && idleAction) {
-                idleAction.reset().fadeIn(0.2).play();
-                if (walkAction) walkAction.fadeOut(0.2);
-                isWalking = false;
-            }
-            
+            // Procedural animation for the static OBJ model
             if (isMoving) {
-                const moveVec = new THREE.Vector3(moveX, 0, moveZ).normalize();
-                moveVec.applyEuler(new THREE.Euler(0, player.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
+                // Bobbing and tilting calculation
+                playerModelContainer.rotation.z = Math.sin(gameTime * 15) * 0.1;
+                playerModelContainer.position.y = Math.abs(Math.sin(gameTime * 15)) * 0.2;
+                gun.position.y = 0.8 + Math.abs(Math.sin(gameTime * 15)) * 0.2;
                 
-                playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x + moveVec.x, 1.25, player.position.z), playerBoxSize);
+                const moveVec = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                moveVec.applyEuler(new THREE.Euler(0, playerGroup.rotation.y, 0)).multiplyScalar(playerSpeed * dt);
+                
+                playerBox.setFromCenterAndSize(new THREE.Vector3(playerGroup.position.x + moveVec.x, 1.25, playerGroup.position.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
-                    player.position.x += moveVec.x;
+                    playerGroup.position.x += moveVec.x;
                 }
 
-                playerBox.setFromCenterAndSize(new THREE.Vector3(player.position.x, 1.25, player.position.z + moveVec.z), playerBoxSize);
+                playerBox.setFromCenterAndSize(new THREE.Vector3(playerGroup.position.x, 1.25, playerGroup.position.z + moveVec.z), playerBoxSize);
                 if (!colliders.some(c => playerBox.intersectsBox(c))) {
-                    player.position.z += moveVec.z;
+                    playerGroup.position.z += moveVec.z;
                 }
                 
-                player.position.x = Math.max(-48, Math.min(48, player.position.x));
-                player.position.z = Math.max(-48, Math.min(48, player.position.z));
+                playerGroup.position.x = Math.max(-48, Math.min(48, playerGroup.position.x));
+                playerGroup.position.z = Math.max(-48, Math.min(48, playerGroup.position.z));
+            } else {
+                // Reset waddle when standing still
+                playerModelContainer.rotation.z = 0;
+                playerModelContainer.position.y = 0;
+                gun.position.y = 0.8;
             }
 
             let growthMultiplier = 1.0;
@@ -711,10 +676,10 @@
             if (isShooting) {
                 weeds.forEach(w => {
                     if (!w.active) return;
-                    const dist = w.mesh.position.distanceTo(player.position);
+                    const dist = w.mesh.position.distanceTo(playerGroup.position);
                     if (dist < sprayRange) {
-                        const dirToWeed = w.mesh.position.clone().sub(player.position).normalize();
-                        const playerForward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, player.rotation.y, 0));
+                        const dirToWeed = w.mesh.position.clone().sub(playerGroup.position).normalize();
+                        const playerForward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, playerGroup.rotation.y, 0));
                         const dot = dirToWeed.dot(playerForward);
                         
                         if (dot > 0.4) { 
@@ -730,12 +695,12 @@
                 for (let j = 0; j < 3; j++) {
                     const p = new THREE.Mesh(particleGeo, particleMat);
                     
-                    const nozzlePos = new THREE.Vector3(0.8, 1.2, -2.0);
-                    player.localToWorld(nozzlePos);
+                    const nozzlePos = new THREE.Vector3(0.5, 0.8, -1.0);
+                    playerGroup.localToWorld(nozzlePos);
                     p.position.copy(nozzlePos);
                     
                     const pDir = new THREE.Vector3(0, 0, -1);
-                    pDir.applyEuler(new THREE.Euler(cameraPivot.rotation.x, player.rotation.y, 0));
+                    pDir.applyEuler(new THREE.Euler(cameraPivot.rotation.x, playerGroup.rotation.y, 0));
                     pDir.add(new THREE.Vector3((Math.random()-0.5)*0.4, (Math.random()-0.5)*0.4, 0)); 
                     
                     scene.add(p);
