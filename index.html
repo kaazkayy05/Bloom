@@ -95,6 +95,11 @@
         button:active {
             background-color: #5a6603;
         }
+        button:disabled {
+            background-color: #555555;
+            cursor: not-allowed;
+            color: #aaaaaa;
+        }
     </style>
 </head>
 <body>
@@ -116,7 +121,7 @@
             <span style="color: #00ffff;">Cyan:</span> Freeze Weeds | 
             <span style="color: #ff00ff;">Magenta:</span> Delete All Weeds
         </p>
-        <button id="start-btn">Start Game</button>
+        <button id="start-btn" disabled>Loading Assets...</button>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display: none;">
@@ -132,8 +137,11 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     
     <script>
+        const WEED_BASE_SCALE = 0.5;
         const FATAL_WEED_SIZE = 4.0;
         const RENDER_SCALE = 0.25; 
 
@@ -178,26 +186,14 @@
         }
 
         const groundGeo = new THREE.BoxGeometry(100, 1, 100);
-        const groundMat = new THREE.MeshLambertMaterial({ color: 0x5C4033 }); 
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x3a5a10 }); 
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.position.y = -0.5;
         ground.receiveShadow = true;
         scene.add(ground);
 
         const sceneryGroup = new THREE.Group();
-
-        const grassTuftGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
-        grassTuftGeo.translate(0, 0.1, 0);
-        const grassTuftMat = new THREE.MeshLambertMaterial({ color: 0x4a6b10 });
-        const grassTufts = new THREE.InstancedMesh(grassTuftGeo, grassTuftMat, 1500);
-        const dummy = new THREE.Object3D();
-        for(let i=0; i<1500; i++) {
-            dummy.position.set((Math.random() - 0.5) * 90, 0, (Math.random() - 0.5) * 90);
-            dummy.rotation.y = Math.random() * Math.PI;
-            dummy.updateMatrix();
-            grassTufts.setMatrixAt(i, dummy.matrix);
-        }
-        sceneryGroup.add(grassTufts);
+        scene.add(sceneryGroup);
 
         const barnBase = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 16), new THREE.MeshLambertMaterial({ color: 0x8b2b2b }));
         barnBase.position.set(-20, 4, -30);
@@ -256,7 +252,69 @@
         createCow(30, 0, -Math.PI/3);
         createCow(25, 12, Math.PI);
 
-        scene.add(sceneryGroup);
+        // --- ASSET LOADER ---
+        let baseWeedModel = null;
+        let weeds = [];
+        let weedIdCounter = 0;
+
+        const manager = new THREE.LoadingManager();
+        manager.onLoad = function () {
+            const btn = document.getElementById('start-btn');
+            btn.innerText = "Start Game";
+            btn.disabled = false;
+            
+            for (let i = 0; i < 40; i++) spawnWeed();
+        };
+
+        const mtlLoader = new THREE.MTLLoader(manager);
+        const objLoader = new THREE.OBJLoader(manager);
+
+        // Load Grass Assets
+        mtlLoader.load('assets/Grass_1.mtl', (materials) => {
+            materials.preload();
+            const grassLoader = new THREE.OBJLoader(manager);
+            grassLoader.setMaterials(materials);
+            grassLoader.load('assets/Grass_1.obj', (object) => {
+                let grassGeo = null;
+                object.traverse((child) => {
+                    if (child.isMesh && !grassGeo) {
+                        grassGeo = child.geometry.clone();
+                    }
+                });
+
+                if (grassGeo) {
+                    const grassMat = new THREE.MeshLambertMaterial({ color: 0x2d8a2d }); 
+                    const instancedGrass = new THREE.InstancedMesh(grassGeo, grassMat, 1500);
+                    instancedGrass.receiveShadow = true;
+                    
+                    const dummy = new THREE.Object3D();
+                    for(let i=0; i<1500; i++) {
+                        dummy.position.set((Math.random() - 0.5) * 90, 0, (Math.random() - 0.5) * 90);
+                        dummy.rotation.y = Math.random() * Math.PI;
+                        dummy.scale.set(0.5, 0.5, 0.5); 
+                        dummy.updateMatrix();
+                        instancedGrass.setMatrixAt(i, dummy.matrix);
+                    }
+                    sceneryGroup.add(instancedGrass);
+                }
+            });
+        });
+
+        // Load Weed Assets
+        mtlLoader.load('assets/Wheat_2.mtl', (materials) => {
+            materials.preload();
+            const weedLoader = new THREE.OBJLoader(manager);
+            weedLoader.setMaterials(materials);
+            weedLoader.load('assets/Wheat_2.obj', (object) => {
+                object.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                baseWeedModel = object;
+            });
+        });
 
         const player = new THREE.Group();
         player.position.set(-25, 0, 20);
@@ -297,12 +355,6 @@
         const playerBoxSize = new THREE.Vector3(1.2, 2.5, 1.2); 
         const playerBox = new THREE.Box3();
 
-        const weeds = [];
-        const weedGeo = new THREE.BoxGeometry(1, 1, 1);
-        weedGeo.translate(0, 0.5, 0); 
-        const weedMat = new THREE.MeshLambertMaterial({ color: 0x7c8a04 });
-        let weedIdCounter = 0;
-
         function getValidSpawnPosition() {
             let valid = false;
             let x, z;
@@ -323,19 +375,21 @@
         }
 
         function spawnWeed() {
-            const weed = new THREE.Mesh(weedGeo, weedMat);
+            if (!baseWeedModel) return;
+
+            const weed = baseWeedModel.clone();
             const pos = getValidSpawnPosition();
             weed.position.set(pos.x, 0, pos.z);
-            weed.scale.set(0.8, 0.2, 0.8);
-            weed.castShadow = true;
-            weed.receiveShadow = true;
             
+            weed.userData = {
+                id: weedIdCounter++,
+                currentHeight: 0.1
+            };
+            
+            weed.scale.set(WEED_BASE_SCALE, weed.userData.currentHeight, WEED_BASE_SCALE);
             scene.add(weed);
-            weeds.push({ mesh: weed, active: true, id: weedIdCounter++ });
+            weeds.push({ mesh: weed, active: true, id: weed.userData.id });
         }
-
-        // Spawn a large starting cluster
-        for (let i = 0; i < 40; i++) spawnWeed();
 
         const powerups = [];
         const puGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
@@ -544,32 +598,27 @@
             if (freezeTimer > 0) {
                 freezeTimer -= dt;
             } else {
-                // Dramatically increased spawn rate
                 if (Math.random() < 10.0 * dt * growthMultiplier && weeds.length < 150) spawnWeed();
             }
 
-            // Iterate backwards to safely delete destroyed weeds from memory
             for (let i = weeds.length - 1; i >= 0; i--) {
                 let w = weeds[i];
                 if (w.active) {
                     if (freezeTimer <= 0) {
-                        // Tripled base growth rate
-                        w.mesh.scale.y += 0.22 * growthMultiplier * dt;
+                        w.mesh.userData.currentHeight += 0.22 * growthMultiplier * dt;
                         
-                        const breath = 0.8 + Math.sin(gameTime * 5 + w.id) * 0.15;
-                        w.mesh.scale.x = breath;
-                        w.mesh.scale.z = breath;
+                        const breath = WEED_BASE_SCALE * (0.8 + Math.sin(gameTime * 5 + w.id) * 0.15);
+                        w.mesh.scale.set(breath, w.mesh.userData.currentHeight, breath);
 
-                        if (w.mesh.scale.y > maxWeedHeight) {
-                            maxWeedHeight = w.mesh.scale.y;
+                        if (w.mesh.userData.currentHeight > maxWeedHeight) {
+                            maxWeedHeight = w.mesh.userData.currentHeight;
                         }
 
-                        if (w.mesh.scale.y >= FATAL_WEED_SIZE) {
+                        if (w.mesh.userData.currentHeight >= FATAL_WEED_SIZE) {
                             endGame(false); 
                         }
                     }
                 } else {
-                    // Weed is dead, erase from engine memory entirely to free spawn cap
                     scene.remove(w.mesh);
                     weeds.splice(i, 1);
                 }
@@ -594,9 +643,8 @@
                         const dot = dirToWeed.dot(playerForward);
                         
                         if (dot > 0.4) { 
-                            w.mesh.scale.y -= 15.0 * dt; 
-                            if (w.mesh.scale.y <= 0.1) {
-                                // Mark as inactive for memory cleanup
+                            w.mesh.userData.currentHeight -= 15.0 * dt; 
+                            if (w.mesh.userData.currentHeight <= 0.1) {
                                 w.active = false;
                                 w.mesh.visible = false; 
                             }
