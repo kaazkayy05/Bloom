@@ -140,8 +140,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     
     <script>
-        const WEED_BASE_SCALE = 1.0; 
-        const FATAL_WEED_SIZE = 4.0;
+        const WEED_BASE_SCALE = 2.5; 
+        const FATAL_WEED_SIZE = 6.0;
         const RENDER_SCALE = 0.45; 
 
         let playerSpeed = 15.0;
@@ -336,14 +336,14 @@
         }
 
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
-            object.position.set(-25, 0, -10);
+            object.position.set(-20, 0, -30);
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
             addCollider(object);
         });
 
         loadTexturedModel('assets/TVS_VoxelFarm_Barn.obj', 'assets/TVS_VoxelFarm_Barn_Texture.png', (object) => {
-            object.position.set(-10, 0, -20);
+            object.position.set(-5, 0, -40);
             object.rotation.y = -Math.PI / 6;
             object.scale.set(1.0, 1.0, 1.0); 
             sceneryGroup.add(object);
@@ -437,7 +437,7 @@
             
             weed.userData = {
                 id: weedIdCounter++,
-                currentHeight: 0.3 
+                currentHeight: 1.0 
             };
             
             weed.scale.set(WEED_BASE_SCALE, weed.userData.currentHeight, WEED_BASE_SCALE);
