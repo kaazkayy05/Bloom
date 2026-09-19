@@ -176,6 +176,18 @@
         dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
 
+        // --- AUDIO SETUP ---
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+
+        const farmAudio = new THREE.Audio(listener);
+        const audioLoader = new THREE.AudioLoader();
+        audioLoader.load('assets/west_wolf_Chicken_farm.mp3', (buffer) => {
+            farmAudio.setBuffer(buffer);
+            farmAudio.setLoop(true);
+            farmAudio.setVolume(0.15); // Quiet background noise
+        });
+
         const colliders = [];
 
         function addCollider(obj) {
@@ -335,7 +347,6 @@
             });
         }
 
-        // Moved windmill and barn closer to the weeds
         loadTexturedModel('assets/TVS_VoxelFarm_Windmill.obj', 'assets/TVS_VoxelFarm_Windmill_Texture.png', (object) => {
             object.position.set(-15, 0, -12);
             object.scale.set(1.0, 1.0, 1.0); 
@@ -499,6 +510,9 @@
                 document.getElementById('start-screen').style.display = 'none';
                 isPlaying = true;
                 clock.start();
+                if (farmAudio.buffer && !farmAudio.isPlaying) {
+                    farmAudio.play();
+                }
             } else {
                 document.getElementById('start-screen').style.display = 'flex';
                 isPlaying = false;
