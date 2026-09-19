@@ -8,7 +8,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #87CEEB;
+            background-color: #f5ccba;
             font-family: 'Courier New', Courier, monospace;
             user-select: none;
         }
@@ -141,17 +141,17 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     
     <script>
-        const WEED_BASE_SCALE = 0.5;
+        const WEED_BASE_SCALE = 1.0; 
         const FATAL_WEED_SIZE = 4.0;
-        const RENDER_SCALE = 0.25; 
+        const RENDER_SCALE = 0.45; 
 
         let playerSpeed = 15.0;
         let sprayRange = 14.0;
         let freezeTimer = 0;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 20, 60);
+        scene.background = new THREE.Color(0xf5ccba); // Soft pinkish-orange sky
+        scene.fog = new THREE.Fog(0xf5ccba, 20, 75);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
 
@@ -163,11 +163,13 @@
         renderer.shadowMap.type = THREE.BasicShadowMap; 
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // Soft grayish-blue ambient fill light
+        const ambientLight = new THREE.AmbientLight(0xc2cada, 0.85);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffdfaa, 1.2);
-        dirLight.position.set(-20, 30, 20);
+        // Sunset orange directional light
+        const dirLight = new THREE.DirectionalLight(0xdaa056, 1.1);
+        dirLight.position.set(-45, 15, 35); // Low angle, behind player start
         dirLight.castShadow = true;
         dirLight.shadow.camera.left = -50;
         dirLight.shadow.camera.right = 50;
@@ -320,7 +322,7 @@
         player.position.set(-25, 0, 20);
 
         const pMat = new THREE.MeshLambertMaterial({ color: 0x0000ff }); 
-        const sMat = new THREE.MeshLambertMaterial({ color: 0xffccaa }); 
+        const sMat = new THREE.MeshLambertMaterial({ color: 0xf9e3cc }); // Updated to softer skin tone
         
         const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), pMat);
         body.position.y = 1.25;
@@ -338,7 +340,7 @@
         const gun = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), new THREE.MeshLambertMaterial({ color: 0x333333 }));
         gun.position.set(0.7, 1.4, -1.0);
         gun.castShadow = true;
-        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x00ff00 }));
+        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x7c8a04 })); // Updated accent green
         tank.position.set(0.7, 1.7, -0.7);
 
         player.add(body, head, armRight, gun, tank);
@@ -348,8 +350,9 @@
         cameraPivot.position.set(0.8, 2.0, 0); 
         player.add(cameraPivot);
         
-        camera.position.set(0, 0.5, 6); 
-        camera.lookAt(0, 0, -10);
+        // Slightly lower camera angle
+        camera.position.set(0, 0.2, 6); 
+        camera.lookAt(0, 0.5, -10);
         cameraPivot.add(camera);
 
         const playerBoxSize = new THREE.Vector3(1.2, 2.5, 1.2); 
@@ -383,7 +386,7 @@
             
             weed.userData = {
                 id: weedIdCounter++,
-                currentHeight: 0.1
+                currentHeight: 0.3 // Starts taller to avoid hiding in pixelation
             };
             
             weed.scale.set(WEED_BASE_SCALE, weed.userData.currentHeight, WEED_BASE_SCALE);
@@ -428,7 +431,7 @@
         
         const particles = [];
         const particleGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
-        const particleMat = new THREE.MeshBasicMaterial({ color: 0x88ccff });
+        const particleMat = new THREE.MeshBasicMaterial({ color: 0xc2cada }); // Soft blue spray
 
         let yaw = 0;
         let pitch = 0;
